@@ -65,8 +65,15 @@ const CSS = `
   --card:#ffffff; --slate-badge:#292524;
 }
 *{box-sizing:border-box}
+html{scroll-behavior:smooth}
+::selection{background:var(--amber-soft)}
 body{margin:0;font-family:ui-sans-system,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--paper);color:var(--ink)}
 a{color:inherit}
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+main.home,.wrap{animation:fadein .18s ease-out}
+.home .badge{transition:transform .18s ease}
+.home .badge:hover{transform:scale(1.04)}
 .home{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 16px 64px}
 .home .badge{width:88px;height:88px;border-radius:22px;box-shadow:0 10px 30px rgba(217,119,6,.25)}
 .wordmark{font-size:46px;font-weight:800;letter-spacing:-1.5px;margin:18px 0 2px}
@@ -74,8 +81,11 @@ a{color:inherit}
 .searchbox{display:flex;width:min(620px,100%);background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 6px 6px 22px;box-shadow:0 2px 14px rgba(28,25,23,.07)}
 .searchbox:focus-within{border-color:var(--amber);box-shadow:0 2px 18px rgba(217,119,6,.22)}
 .searchbox input{flex:1;border:0;outline:0;font-size:17px;background:transparent;min-width:0}
-.searchbox button{border:0;background:var(--amber);color:#fff;font-size:16px;font-weight:600;border-radius:999px;padding:10px 22px;cursor:pointer}
-.searchbox button:hover{background:var(--amber-dark)}
+.searchbox button{border:0;background:var(--amber);color:#fff;font-size:16px;font-weight:600;border-radius:999px;padding:10px 22px;cursor:pointer;transition:background .15s ease,transform .12s ease,box-shadow .15s ease}
+.searchbox button:hover{background:var(--amber-dark);transform:translateY(-1px);box-shadow:0 4px 12px rgba(217,119,6,.35)}
+.searchbox button:active{transform:translateY(0) scale(.97);box-shadow:none}
+.searchbox button:focus-visible{outline:3px solid var(--amber-soft);outline-offset:2px}
+.searchbox button.searching{opacity:.75;pointer-events:none}
 .home .stats{margin-top:26px;color:var(--muted);font-size:14px;text-align:center;line-height:1.7}
 .home .stats b{color:var(--ink)}
 .sources-line{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:10px}
@@ -91,23 +101,27 @@ footer a{color:var(--amber-dark);text-decoration:none}
 .topbar .dashlink{margin-left:auto;color:var(--muted);text-decoration:none;font-size:14px;white-space:nowrap}
 .wrap{max-width:720px;margin:0 auto;padding:8px 16px 60px}
 .chips{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 4px}
-.chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 14px;font-size:13.5px;text-decoration:none;color:var(--muted)}
+.chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 16px;font-size:13.5px;text-decoration:none;color:var(--muted);transition:background .15s ease,color .15s ease,border-color .15s ease,transform .12s ease}
+.chip:hover{border-color:var(--amber);color:var(--amber-dark)}
+.chip:active{transform:scale(.96)}
 .chip-active{background:var(--slate-badge);color:#fff;border-color:var(--slate-badge)}
+.chip-active:hover{color:#fff}
 .resultline{color:var(--muted);font-size:13.5px;margin:10px 0 18px}
-.result{margin:0 0 28px}
+.result{margin:0 0 28px;animation:rise .18s ease-out backwards}
 .result .urlrow{display:flex;align-items:center;gap:8px;margin-bottom:3px}
 .srcbadge{background:var(--amber-soft);color:var(--amber-dark);font-size:11.5px;font-weight:700;border-radius:6px;padding:2px 7px;text-transform:uppercase;letter-spacing:.4px}
 .result .url{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .result h3{margin:0 0 3px;font-size:19.5px;font-weight:600;line-height:1.3}
-.result h3 a{color:#1e3a8a;text-decoration:none}
-.result h3 a:hover{text-decoration:underline}
+.result h3 a{color:#1e3a8a;text-decoration:none;transition:color .15s ease}
+.result h3 a:hover{text-decoration:underline;color:var(--amber-dark)}
 .result p{margin:0;color:#44403c;font-size:14.5px;line-height:1.55}
 mark{background:var(--mark);color:inherit;padding:0 1px;border-radius:2px}
 .empty{background:#fff;border:1px solid var(--line);border-radius:14px;padding:26px;margin-top:22px}
 .empty h2{margin:0 0 8px;font-size:19px}
 .empty p{color:var(--muted);margin:0;line-height:1.6}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:20px 0}
-.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;transition:transform .15s ease,box-shadow .15s ease}
+.card:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(28,25,23,.08)}
 .card .num{font-size:30px;font-weight:800;letter-spacing:-.5px}
 .card .lbl{color:var(--muted);font-size:13px;margin-top:2px}
 .panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;margin:0 0 16px}
@@ -123,6 +137,10 @@ mark{background:var(--mark);color:inherit;padding:0 1px;border-radius:2px}
 .dash-head .badge{width:44px;height:44px;border-radius:11px}
 .dash-head h1{font-size:26px;margin:0;letter-spacing:-.5px}
 @media (max-width:560px){ .wordmark{font-size:38px} .topbar .dashlink{display:none} .result h3{font-size:18px} }
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.01ms !important;animation-delay:0ms !important;transition-duration:.01ms !important}
+}
 `;
 
 function pageShell(title: string, body: string): string {
@@ -135,7 +153,27 @@ function pageShell(title: string, body: string): string {
 <link rel="icon" type="image/png" href="/assets/favicon.png">
 <style>${CSS}</style>
 </head>
-<body>${body}</body>
+<body>${body}
+<script>
+// Interaction feedback: a submitted search always answers back, and "/"
+// jumps to the search box from anywhere on the page.
+document.querySelectorAll("form.searchbox").forEach((form) => {
+  form.addEventListener("submit", () => {
+    const btn = form.querySelector("button");
+    if (btn) {
+      btn.textContent = "Searching…";
+      btn.classList.add("searching");
+    }
+  });
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "/" && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) {
+    e.preventDefault();
+    document.querySelector('.searchbox input[name="q"]')?.focus();
+  }
+});
+</script>
+</body>
 </html>`;
 }
 
@@ -165,8 +203,8 @@ function resultsPage(q: string, source: string): string {
   const outcome = search(index, q, { limit: 10, source: source || undefined });
   const items = outcome.results
     .map(
-      (r) => `
-<article class="result">
+      (r, i) => `
+<article class="result" style="animation-delay:${Math.min(i * 25, 200)}ms">
   <div class="urlrow"><span class="srcbadge">${esc(r.source)}</span><span class="url">${esc(prettyUrl(r.url))}</span></div>
   <h3><a href="${esc(r.url)}">${esc(r.title)}</a></h3>
   <p>${snippetHtml(r.snippet)}</p>
