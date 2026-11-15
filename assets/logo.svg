@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Quarry logo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e293b"/>
+      <stop offset="1" stop-color="#0f172a"/>
+    </linearGradient>
+    <clipPath id="lens">
+      <circle cx="225" cy="212" r="96"/>
+    </clipPath>
+  </defs>
+  <rect x="0" y="0" width="512" height="512" rx="110" fill="url(#bg)"/>
+  <g clip-path="url(#lens)">
+    <rect x="168" y="178" width="124" height="17" rx="8" fill="#f59e0b"/>
+    <rect x="152" y="214" width="148" height="17" rx="8" fill="#d97706"/>
+    <rect x="172" y="250" width="110" height="17" rx="8" fill="#b45309"/>
+  </g>
+  <circle cx="225" cy="212" r="108" fill="none" stroke="#f8fafc" stroke-width="25"/>
+  <line x1="302" y1="290" x2="392" y2="388" stroke="#f8fafc" stroke-width="32" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,6 @@
+# crawl output and the built index are generated, not source
+data/
+node_modules/
+.env
+*.log
+.DS_Store

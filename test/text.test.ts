@@ -1,0 +1,47 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { stem, tokenize, extractPage } from "../src/text.ts";
+
+test("stem merges common inflections of the same word", () => {
+  assert.equal(stem("promises"), stem("promise"));
+  assert.equal(stem("promising"), stem("promise"));
+  assert.equal(stem("arrays"), stem("array"));
+  assert.equal(stem("running"), "run");
+});
+
+test("tokenize lowercases, stems and drops stopwords", () => {
+  const tokens = tokenize("How do Promises work in JavaScript?");
+  assert.ok(tokens.includes("promis"));
+  assert.ok(tokens.includes("javascript"));
+  assert.ok(!tokens.includes("how"));
+  assert.ok(!tokens.includes("do"));
+});
+
+test("extractPage finds unquoted hrefs (Node.js docs style)", () => {
+  const html = `<html><head><title>Index</title></head><body><main>
+  <a class=nav-assert href=assert.html>Assertion testing</a>
+  <a href='single.html'>Single quoted</a>
+  <p>${"Documentation text that is comfortably over the stub threshold. ".repeat(6)}</p>
+  </main></body></html>`;
+  const page = extractPage(html, "https://nodejs.org/api/");
+  assert.ok(page.links.some((l) => l === "https://nodejs.org/api/assert.html"));
+  assert.ok(page.links.some((l) => l === "https://nodejs.org/api/single.html"));
+});
+
+test("extractPage pulls title, main text, headings and links", () => {
+  const html = `<!doctype html><html><head><title>Promise | MDN</title></head>
+  <body><nav>navigation junk that should mostly be ignored</nav>
+  <main><h1>Promise</h1><p>A Promise is an object representing the eventual
+  completion or failure of an asynchronous operation and its resulting value.
+  This page explains how promises work in practice, with examples.</p>
+  <a href="/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/all">Promise.all</a>
+  </main><footer>footer text</footer></body></html>`;
+  const page = extractPage(html, "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise");
+  assert.equal(page.title, "Promise | MDN");
+  assert.ok(page.text.includes("asynchronous operation"));
+  assert.ok(page.headings.includes("Promise"));
+  assert.ok(
+    page.links.some((l) => l.endsWith("/Promise/all")),
+    "relative link resolved against the page URL",
+  );
+});
