@@ -92,6 +92,9 @@ main.home,.wrap{animation:fadein .18s ease-out}
 .pill{background:#fff;border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:13px;color:var(--muted)}
 footer{margin-top:44px;color:var(--muted);font-size:13px;text-align:center;line-height:1.8}
 footer a{color:var(--amber-dark);text-decoration:none}
+.gh-link{display:inline-flex;color:var(--muted);text-decoration:none}
+.gh-link:hover{color:var(--amber-dark)}
+.gh-link svg{width:22px;height:22px;fill:currentColor}
 .topbar{position:sticky;top:0;background:rgba(250,249,247,.92);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);padding:12px 16px;display:flex;align-items:center;gap:14px;z-index:5}
 .topbar .badge{width:36px;height:36px;border-radius:9px}
 .topbar .mini{font-weight:800;font-size:20px;letter-spacing:-.5px;text-decoration:none}
@@ -257,6 +260,9 @@ function dashboardPage(): string {
   <section class="panel"><h2>Most widespread terms</h2><div class="terms">${terms}</div>
   <p style="color:var(--muted);font-size:13px;margin:14px 0 0">Number = in how many pages the term appears. Index built ${esc(new Date(info.builtAt).toUTCString())}.</p></section>
   <p><a href="/" style="color:var(--amber-dark);text-decoration:none">← Back to search</a></p>
+  <footer>
+    <a class="gh-link" href="https://github.com/Abhisheklang" target="_blank" rel="noreferrer" aria-label="GitHub profile of Abhisheklang"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" /></svg></a>
+  </footer>
 </div>`;
   return pageShell("Index dashboard — Quarry", body);
 }
