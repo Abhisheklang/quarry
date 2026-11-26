@@ -1,6 +1,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { connect } from "node:net";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -156,6 +157,26 @@ test("an invalid PORT exits with a clear message instead of a NaN banner (K9)", 
   assert.equal(result.status, 1);
   assert.ok(result.stderr.includes('Invalid PORT "abc"'), `stderr: ${result.stderr}`);
   assert.ok(!result.stderr.includes("NaN"), `stderr must not claim a NaN port: ${result.stderr}`);
+});
+
+test("a malformed request-target gets a 400 and the server stays up (Q-ADV-1)", async () => {
+  // fetch() cannot send a request-target of "/\" (its own URL parser
+  // rejects it), so send the audit's trigger bytes over a raw socket.
+  const raw = await new Promise<string>((resolve, reject) => {
+    const sock = connect(HEADERS_PORT, "127.0.0.1", () => {
+      sock.write("GET /\\ HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n");
+    });
+    let data = "";
+    sock.on("data", (chunk) => (data += chunk));
+    sock.on("end", () => resolve(data));
+    sock.on("error", reject);
+    setTimeout(() => reject(new Error("no response to the malformed request")), 5000);
+  });
+  assert.ok(raw.startsWith("HTTP/1.1 400"), `expected a 400 response, got: ${raw.slice(0, 80)}`);
+  // The same server process must still answer afterwards.
+  const after = await fetch(`http://127.0.0.1:${HEADERS_PORT}/health`);
+  assert.equal(after.status, 200);
+  await after.text();
 });
 
 test("normal-rate API requests pass and a burst beyond the limit gets 429", async () => {

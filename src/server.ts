@@ -2,7 +2,7 @@
 // dashboard — one dependency-free Node server rendering HTML itself.
 //
 //   PORT=3000 node src/server.ts
-import { createServer } from "node:http";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFileSync, existsSync, statSync } from "node:fs";
 import { search, stats, type Index } from "./engine.ts";
 
@@ -366,8 +366,40 @@ function rateLimited(ip: string): boolean {
   return bucket.count > RATE_LIMIT;
 }
 
+// The handler is wrapped so no single request can take the process down:
+// a malformed request-target (for example "/\") makes new URL() throw, and
+// before this guard that exception escaped the handler and exited the
+// server. A bad target now gets a 400 and any other handler error a 500,
+// and the server keeps answering either way (Q-ADV-1).
 const server = createServer((req, res) => {
-  const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
+  try {
+    route(req, res);
+  } catch (err) {
+    console.error(
+      `request failed for ${req.url ?? "?"}: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    if (!res.headersSent) {
+      res.writeHead(500, {
+        "content-type": "text/plain; charset=utf-8",
+        ...SECURITY_HEADERS,
+      });
+    }
+    if (!res.writableEnded) res.end("Internal error");
+  }
+});
+
+function route(req: IncomingMessage, res: ServerResponse): void {
+  let url: URL;
+  try {
+    url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
+  } catch {
+    res.writeHead(400, {
+      "content-type": "text/plain; charset=utf-8",
+      ...SECURITY_HEADERS,
+    });
+    res.end("Bad request");
+    return;
+  }
   const send = (code: number, type: string, body: string | Buffer) => {
     res.writeHead(code, { "content-type": type, ...SECURITY_HEADERS });
     res.end(body);
@@ -381,7 +413,8 @@ const server = createServer((req, res) => {
       allow: "GET, HEAD",
       ...SECURITY_HEADERS,
     });
-    return res.end("Method not allowed");
+    res.end("Method not allowed");
+    return;
   }
 
   if (url.pathname === "/api/search" || url.pathname === "/api/stats") {
@@ -420,6 +453,6 @@ const server = createServer((req, res) => {
   if (asset) return send(200, asset.type, asset.body);
   if (url.pathname === "/health") return send(200, "application/json", `{"ok":true}`);
   return send(404, "text/html; charset=utf-8", pageShell("Not found — Quarry", `<div class="wrap"><div class="empty"><h2>404</h2><p>That page is not in the index — or anywhere else here. <a href="/">Back to search</a></p></div></div>`));
-});
+}
 
 server.listen(PORT);
