@@ -110,7 +110,7 @@ docs/             architecture notes, screenshots, demo recording
 ## Tests
 
 ```bash
-npm test   # node --test — 14 tests, no framework, no install
+npm test   # node --test — 56 tests, no framework, no install
 ```
 
 ## FAQ
