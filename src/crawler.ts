@@ -201,6 +201,9 @@ export async function crawlSource(
   const robots = await Robots.load(origin);
 
   const seen = new Set<string>([seed]);
+  // Final (post-redirect) URLs already stored in this crawl: two queued
+  // URLs can redirect to the same page, and only the first may count.
+  const storedFinals = new Set<string>();
   const queue: string[] = [seed];
   let fetched = 0;
   // Every fetch attempt counts toward the maxPages budget, not only
@@ -292,6 +295,11 @@ export async function crawlSource(
     }
     const { title, headings, text, links } = extracted;
     if (text.length < 200) return; // a stub or redirect shell, not a document
+    // Redirect aliasing: another queued URL already landed on this final
+    // URL in this crawl. Do not count or store the same page twice.
+    if (storedFinals.has(finalUrl)) return;
+    storedFinals.add(finalUrl);
+    seen.add(finalUrl);
     fetched++;
     // On a resumed run, pages already stored are traversed for their links
     // but not stored twice. Pages are stored under their final validated

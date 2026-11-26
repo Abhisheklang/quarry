@@ -190,6 +190,30 @@ test("crawlSource does not follow a redirect into a robots-disallowed path (SEC1
   }
 });
 
+test("crawlSource stores a redirect target only once when two URLs alias to it (K6)", async () => {
+  const restore = stubFetch((url) => {
+    if (url === "https://example.com/docs") {
+      return new Response(
+        `<html><head><title>Hub</title></head><body><main><p>${LONG}</p><a href="/docs/a">a</a><a href="/docs/b">b</a></main></body></html>`,
+        { headers: { "content-type": "text/html" } },
+      );
+    }
+    if (url === "https://example.com/docs/final") {
+      return new Response(DOC_HTML, { headers: { "content-type": "text/html" } });
+    }
+    return new Response(null, { status: 302, headers: { location: "/docs/final" } });
+  });
+  try {
+    const pages: CrawledPage[] = [];
+    const fetched = await crawlSource(DOC_SOURCE, { onPage: (p) => pages.push(p) }, { delayMs: 0 });
+    assert.equal(fetched, 2); // the hub plus the shared final page, once
+    assert.equal(pages.length, 2);
+    assert.equal(pages.filter((p) => p.url === "https://example.com/docs/final").length, 1);
+  } finally {
+    restore();
+  }
+});
+
 test("crawlSource worker pool fetches concurrently, not serially (K1)", async () => {
   // Every page fetch takes 60 ms; the seed links to 4 leaves. A working
   // pool of 2 must overlap fetches (max in flight >= 2); the old pool
