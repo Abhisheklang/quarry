@@ -40,6 +40,13 @@ const OUT = new URL("../data/pages.jsonl", import.meta.url).pathname;
 async function main(): Promise<void> {
   mkdirSync(new URL("../data", import.meta.url).pathname, { recursive: true });
   const only = process.argv.slice(2);
+  const unknown = only.filter((name) => !SOURCES.some((s) => s.name === name));
+  if (unknown.length) {
+    console.error(
+      `unknown source name(s): ${unknown.join(", ")}. Known sources: ${SOURCES.map((s) => s.name).join(", ")}`,
+    );
+    process.exit(1);
+  }
   const sources = only.length
     ? SOURCES.filter((s) => only.includes(s.name))
     : SOURCES;
