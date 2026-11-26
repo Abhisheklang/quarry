@@ -79,7 +79,9 @@ const SOURCE_NAMES = Object.keys(info.sources);
 function sourceChips(active: string, q: string): string {
   const chip = (name: string, label: string) =>
     `<a class="chip${active === name ? " chip-active" : ""}" href="/search?q=${encodeURIComponent(q)}${name ? `&source=${encodeURIComponent(name)}` : ""}">${label}</a>`;
-  return `<nav class="chips">${chip("", "All")}${SOURCE_NAMES.map((s) => chip(s, s)).join("")}</nav>`;
+  // The chip label is index data, not a trusted literal: escape it like
+  // every other rendering of the source name (Q-ADV-8).
+  return `<nav class="chips">${chip("", "All")}${SOURCE_NAMES.map((s) => chip(s, esc(s))).join("")}</nav>`;
 }
 
 // ---------- pages ----------

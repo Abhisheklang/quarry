@@ -179,6 +179,54 @@ test("a malformed request-target gets a 400 and the server stays up (Q-ADV-1)", 
   await after.text();
 });
 
+test("results-page source chips escape a crafted source name (Q-ADV-8)", async () => {
+  const evil = '"><img src=x onerror=alert(1)>';
+  const dir = mkdtempSync(join(tmpdir(), "quarry-xss-test-"));
+  const crafted = join(dir, "index.json");
+  writeFileSync(
+    crafted,
+    JSON.stringify({
+      version: 1,
+      builtAt: new Date().toISOString(),
+      docs: [
+        {
+          url: "https://example.com/docs/promise",
+          source: evil,
+          title: "Promises",
+          text: "A promise represents an asynchronous operation.",
+          len: 6,
+        },
+      ],
+      postings: { promis: [[0, [0]]] },
+      avgLen: 6,
+      sources: { [evil]: 1 },
+    }),
+  );
+  const child = spawn(process.execPath, ["src/server.ts"], {
+    cwd: new URL("..", import.meta.url).pathname,
+    env: { ...process.env, PORT: "3419", QUARRY_INDEX: crafted },
+    stdio: "ignore",
+  });
+  try {
+    let html = "";
+    for (let i = 0; i < 100; i++) {
+      try {
+        const res = await fetch("http://127.0.0.1:3419/search?q=promise");
+        if (res.ok) {
+          html = await res.text();
+          break;
+        }
+      } catch {}
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    assert.ok(html.length > 0, "crafted-index server did not answer");
+    assert.ok(!html.includes("<img src=x onerror=alert(1)>"), "raw payload must not appear");
+    assert.ok(html.includes("&lt;img src=x onerror=alert(1)&gt;"), "escaped payload expected");
+  } finally {
+    child.kill();
+  }
+});
+
 test("normal-rate API requests pass and a burst beyond the limit gets 429", async () => {
   // Normal rate: a handful of requests all succeed.
   for (let i = 0; i < 5; i++) {
