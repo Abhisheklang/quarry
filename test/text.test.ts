@@ -44,6 +44,20 @@ test("decodeEntities leaves out-of-range code points untouched instead of throwi
   assert.equal(decodeEntities("&#1114111;"), String.fromCodePoint(0x10ffff));
 });
 
+test("decodeEntities decodes common named entities (K4)", () => {
+  assert.equal(
+    decodeEntities("Tom &amp; Jerry &mdash; &copy; 2026 &rsquo;til &hellip;"),
+    "Tom & Jerry — © 2026 ’til …",
+  );
+  assert.equal(decodeEntities("&ldquo;quoted&rdquo; &ndash; &trade;"), "“quoted” – ™");
+});
+
+test("decodeEntities never double-decodes (K5)", () => {
+  assert.equal(decodeEntities("&#38;lt; should stay literal &lt;"), "&lt; should stay literal <");
+  assert.equal(decodeEntities("&amp;lt;"), "&lt;");
+  assert.equal(decodeEntities("&#38;#60;"), "&#60;");
+});
+
 test("extractPage survives a page containing an out-of-range entity", () => {
   const html = `<html><head><title>Bad entity</title></head><body><main>
   <p>Broken entity &#1114112; and hex &#x110000; in otherwise normal text. ${"Documentation text that is comfortably over the stub threshold. ".repeat(6)}</p>

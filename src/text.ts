@@ -17,9 +17,98 @@ const ENTITIES: Record<string, string> = {
   "&lt;": "<",
   "&gt;": ">",
   "&quot;": '"',
-  "&#39;": "'",
   "&apos;": "'",
   "&nbsp;": " ",
+  "&ndash;": "–",
+  "&mdash;": "—",
+  "&lsquo;": "‘",
+  "&rsquo;": "’",
+  "&sbquo;": "‚",
+  "&ldquo;": "“",
+  "&rdquo;": "”",
+  "&bdquo;": "„",
+  "&hellip;": "…",
+  "&copy;": "©",
+  "&reg;": "®",
+  "&trade;": "™",
+  "&laquo;": "«",
+  "&raquo;": "»",
+  "&middot;": "·",
+  "&deg;": "°",
+  "&plusmn;": "±",
+  "&sup2;": "²",
+  "&sup3;": "³",
+  "&frac12;": "½",
+  "&frac14;": "¼",
+  "&frac34;": "¾",
+  "&micro;": "µ",
+  "&para;": "¶",
+  "&sect;": "§",
+  "&dagger;": "†",
+  "&Dagger;": "‡",
+  "&bull;": "•",
+  "&prime;": "′",
+  "&Prime;": "″",
+  "&permil;": "‰",
+  "&euro;": "€",
+  "&pound;": "£",
+  "&yen;": "¥",
+  "&cent;": "¢",
+  "&curren;": "¤",
+  "&iexcl;": "¡",
+  "&iquest;": "¿",
+  "&brvbar;": "¦",
+  "&uml;": "¨",
+  "&ordf;": "ª",
+  "&ordm;": "º",
+  "&not;": "¬",
+  "&macr;": "¯",
+  "&acute;": "´",
+  "&cedil;": "¸",
+  "&szlig;": "ß",
+  "&agrave;": "à",
+  "&aacute;": "á",
+  "&acirc;": "â",
+  "&atilde;": "ã",
+  "&auml;": "ä",
+  "&aring;": "å",
+  "&aelig;": "æ",
+  "&ccedil;": "ç",
+  "&egrave;": "è",
+  "&eacute;": "é",
+  "&ecirc;": "ê",
+  "&euml;": "ë",
+  "&igrave;": "ì",
+  "&iacute;": "í",
+  "&icirc;": "î",
+  "&iuml;": "ï",
+  "&ntilde;": "ñ",
+  "&ograve;": "ò",
+  "&oacute;": "ó",
+  "&ocirc;": "ô",
+  "&otilde;": "õ",
+  "&ouml;": "ö",
+  "&oslash;": "ø",
+  "&ugrave;": "ù",
+  "&uacute;": "ú",
+  "&ucirc;": "û",
+  "&uuml;": "ü",
+  "&yacute;": "ý",
+  "&yuml;": "ÿ",
+  "&times;": "×",
+  "&divide;": "÷",
+  "&minus;": "−",
+  "&infin;": "∞",
+  "&ne;": "≠",
+  "&le;": "≤",
+  "&ge;": "≥",
+  "&asymp;": "≈",
+  "&rarr;": "→",
+  "&larr;": "←",
+  "&uarr;": "↑",
+  "&darr;": "↓",
+  "&harr;": "↔",
+  "&check;": "✓",
 };
 
 export function decodeEntities(s: string): string {
@@ -27,10 +116,23 @@ export function decodeEntities(s: string): string {
   // RangeError for them. Leave such entities untouched instead of crashing.
   const fromCodePoint = (n: number, raw: string): string =>
     Number.isFinite(n) && n >= 0 && n <= 0x10ffff ? String.fromCodePoint(n) : raw;
-  return s
-    .replace(/&#(\d+);/g, (m, n) => fromCodePoint(Number(n), m))
-    .replace(/&#x([0-9a-f]+);/gi, (m, n) => fromCodePoint(parseInt(n, 16), m))
-    .replace(/&[a-z#0-9]+;/gi, (m) => ENTITIES[m.toLowerCase()] ?? m);
+  // ONE pass over the text: the replacement text is never rescanned, so a
+  // literal "&#38;lt;" (an author writing about the &lt; entity) decodes
+  // to "&lt;" and stops there instead of double-decoding to "<".
+  return s.replace(
+    /&(#\d+|#[xX][0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);/g,
+    (m, body: string) => {
+      if (body.startsWith("#")) {
+        const n =
+          body[1] === "x" || body[1] === "X"
+            ? parseInt(body.slice(2), 16)
+            : Number(body.slice(1));
+        return fromCodePoint(n, m);
+      }
+      // Exact case first (&Dagger; differs from &dagger;), then lowercase.
+      return ENTITIES[`&${body};`] ?? ENTITIES[`&${body.toLowerCase()};`] ?? m;
+    },
+  );
 }
 
 export interface ExtractedPage {
