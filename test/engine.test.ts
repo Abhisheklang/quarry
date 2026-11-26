@@ -36,17 +36,17 @@ const index = buildIndex(corpus);
 test("search ranks the on-topic page first", () => {
   const out = search(index, "how do promises work");
   assert.ok(out.results.length >= 2);
-  assert.equal(out.results[0].url, "https://docs.example/promise");
+  assert.equal(out.results[0]?.url, "https://docs.example/promise");
 });
 
 test("a title match beats a passing body mention", () => {
   const out = search(index, "array");
-  assert.equal(out.results[0].url, "https://docs.example/arrays");
+  assert.equal(out.results[0]?.url, "https://docs.example/arrays");
 });
 
 test("snippets highlight the matched terms", () => {
   const out = search(index, "promise");
-  assert.ok(out.results[0].snippet.includes("**"));
+  assert.ok(out.results[0]?.snippet.includes("**"));
 });
 
 test("offset pages through the full result set (U1)", () => {
@@ -83,7 +83,7 @@ test("a C++ page is findable by searching for C++ (K3)", () => {
   ]);
   const out = search(cppIndex, "C++");
   assert.ok(out.total >= 1);
-  assert.equal(out.results[0].url, "https://docs.example/cpp");
+  assert.equal(out.results[0]?.url, "https://docs.example/cpp");
   const sharp = search(cppIndex, "C#");
   assert.equal(sharp.total, 0); // no C# page in this corpus
 });
@@ -99,7 +99,7 @@ test("literal ** pairs in page text are not treated as match markers (U6)", () =
   ]);
   const out = search(mdIndex, "zebra");
   assert.equal(out.results.length, 1);
-  const snippet = out.results[0].snippet;
+  const snippet = out.results[0]?.snippet ?? "";
   assert.ok(snippet.includes("**zebra**"), "the genuine match keeps its markers");
   assert.ok(!snippet.includes("**bold**"), "the literal pair must not survive as a marker pair");
 });
@@ -128,7 +128,7 @@ test("terms colliding with Object.prototype are indexed and searchable", () => {
     ...corpus,
   ]);
   const out = search(tricky, "constructor");
-  assert.equal(out.results[0].url, "https://docs.example/ctor");
+  assert.equal(out.results[0]?.url, "https://docs.example/ctor");
   // a prototype name that is NOT in the index must not explode the search
   const none = search(tricky, "hasOwnProperty");
   assert.ok(Array.isArray(none.results));

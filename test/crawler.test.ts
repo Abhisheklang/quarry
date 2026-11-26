@@ -81,7 +81,7 @@ test("crawlSource follows an in-prefix redirect and stores the page under the fi
     const fetched = await crawlSource(DOC_SOURCE, { onPage: (p) => pages.push(p) }, { delayMs: 0 });
     assert.equal(fetched, 1);
     assert.equal(pages.length, 1);
-    assert.equal(pages[0].url, "https://example.com/docs/final");
+    assert.equal(pages[0]?.url, "https://example.com/docs/final");
   } finally {
     restore();
   }
@@ -279,7 +279,7 @@ test("crawlSource stores a direct 200 response under its own URL", async () => {
     const pages: CrawledPage[] = [];
     const fetched = await crawlSource(DOC_SOURCE, { onPage: (p) => pages.push(p) }, { delayMs: 0 });
     assert.equal(fetched, 1);
-    assert.equal(pages[0].url, "https://example.com/docs");
+    assert.equal(pages[0]?.url, "https://example.com/docs");
   } finally {
     restore();
   }
