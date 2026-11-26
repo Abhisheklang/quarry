@@ -1,8 +1,33 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-const INDEX = new URL("../data/index.json", import.meta.url).pathname;
+// Self-contained minimal index: data/index.json is gitignored, so CI has
+// no index on disk. The server only needs a structurally valid one.
+const INDEX_DIR = mkdtempSync(join(tmpdir(), "quarry-server-test-"));
+const INDEX = join(INDEX_DIR, "index.json");
+writeFileSync(
+  INDEX,
+  JSON.stringify({
+    version: 1,
+    builtAt: new Date().toISOString(),
+    docs: [
+      {
+        url: "https://example.com/docs/promise",
+        source: "test",
+        title: "Promises",
+        text: "A promise represents an asynchronous operation.",
+        len: 6,
+      },
+    ],
+    postings: { promise: [[0, [0]]] },
+    avgLen: 6,
+    sources: { test: 1 },
+  }),
+);
 
 async function startServer(port: number): Promise<ChildProcess> {
   const child = spawn(process.execPath, ["src/server.ts"], {
