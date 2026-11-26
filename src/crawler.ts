@@ -275,8 +275,15 @@ export async function crawlSource(
         if (result === null) return;
         html = result.body;
         finalUrl = result.finalUrl;
-      } catch {
-        if (attempt === 1) return;
+      } catch (e) {
+        if (attempt === 1) {
+          // A failure the retry could not fix must be diagnosable: log
+          // the URL and the cause instead of vanishing into a count.
+          console.error(
+            `crawl: fetch failed for ${url}: ${e instanceof Error ? e.message : String(e)}`,
+          );
+          return;
+        }
         await new Promise((r) => setTimeout(r, 1000));
       }
     }
@@ -290,7 +297,10 @@ export async function crawlSource(
     let extracted;
     try {
       extracted = extractPage(html, finalUrl);
-    } catch {
+    } catch (e) {
+      console.error(
+        `crawl: extraction failed for ${finalUrl}: ${e instanceof Error ? e.message : String(e)}`,
+      );
       return;
     }
     const { title, headings, text, links } = extracted;

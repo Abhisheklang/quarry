@@ -246,6 +246,31 @@ test("crawlSource worker pool fetches concurrently, not serially (K1)", async ()
   }
 });
 
+test("crawlSource logs the URL and cause when a fetch keeps failing (V3)", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (input: unknown) => {
+    const url = String(input);
+    if (url.endsWith("/robots.txt")) return new Response("", { status: 404 });
+    throw new Error("connection refused");
+  }) as typeof fetch;
+  const errors: string[] = [];
+  const originalError = console.error;
+  console.error = (...args: unknown[]) => {
+    errors.push(args.map(String).join(" "));
+  };
+  try {
+    const fetched = await crawlSource(DOC_SOURCE, {}, { delayMs: 0 });
+    assert.equal(fetched, 0);
+    assert.ok(
+      errors.some((line) => line.includes("https://example.com/docs") && line.includes("connection refused")),
+      `expected a logged failure naming the URL and cause, got: ${errors.join(" | ")}`,
+    );
+  } finally {
+    globalThis.fetch = original;
+    console.error = originalError;
+  }
+});
+
 test("crawlSource stores a direct 200 response under its own URL", async () => {
   const restore = stubFetch(
     () => new Response(DOC_HTML, { headers: { "content-type": "text/html" } }),
