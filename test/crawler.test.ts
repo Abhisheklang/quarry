@@ -162,6 +162,34 @@ test("crawlSource bounds total fetches at maxPages when pages return 404 (S2)", 
   }
 });
 
+test("crawlSource does not follow a redirect into a robots-disallowed path (SEC1)", async () => {
+  const requested: string[] = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (input: unknown) => {
+    const url = String(input);
+    requested.push(url);
+    if (url.endsWith("/robots.txt")) {
+      return new Response("User-agent: *\nDisallow: /docs/secret/\n", { status: 200 });
+    }
+    if (url === "https://example.com/docs/secret/page") {
+      return new Response(DOC_HTML, { headers: { "content-type": "text/html" } });
+    }
+    return new Response(null, { status: 302, headers: { location: "/docs/secret/page" } });
+  }) as typeof fetch;
+  try {
+    const pages: CrawledPage[] = [];
+    const fetched = await crawlSource(DOC_SOURCE, { onPage: (p) => pages.push(p) }, { delayMs: 0 });
+    assert.equal(fetched, 0);
+    assert.equal(pages.length, 0);
+    assert.ok(
+      !requested.includes("https://example.com/docs/secret/page"),
+      "the disallowed redirect target must never be fetched",
+    );
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
 test("crawlSource worker pool fetches concurrently, not serially (K1)", async () => {
   // Every page fetch takes 60 ms; the seed links to 4 leaves. A working
   // pool of 2 must overlap fetches (max in flight >= 2); the old pool

@@ -191,6 +191,10 @@ export async function crawlSource(
     ): Promise<{ body: string; finalUrl: string } | null> {
       let current = start;
       for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
+        // Every hop is re-checked against robots.txt, not just the
+        // originally queued URL: a redirect into a disallowed path must
+        // not be fetched either.
+        if (!robots.allows(current)) return null;
         const res = await fetch(current, {
           headers: { "user-agent": USER_AGENT },
           signal: AbortSignal.timeout(20000),
