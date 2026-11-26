@@ -165,9 +165,13 @@ export function extractPage(html: string, pageUrl: string): ExtractedPage {
   const mainMatch =
     html.match(/<main[\s\S]*?<\/main>/i) ?? html.match(/<article[\s\S]*?<\/article>/i);
   let body = mainMatch ? mainMatch[0] : html;
+  // End tags may carry whitespace before the closing bracket
+  // ("</script >", "</style\t>"), which an exact "</script>" pattern
+  // misses, and an unclosed script or style body must be dropped to the
+  // end of the input instead of leaking into the indexed text (Q-ADV-7).
   body = body
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?(?:<\/script\s*>|$)/gi, " ")
+    .replace(/<style[\s\S]*?(?:<\/style\s*>|$)/gi, " ")
     .replace(/<svg[\s\S]*?<\/svg>/gi, " ")
     .replace(/<nav[\s\S]*?<\/nav>/gi, " ")
     .replace(/<!--[\s\S]*?-->/g, " ");

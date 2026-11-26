@@ -77,6 +77,43 @@ test("extractPage survives a page containing an out-of-range entity", () => {
   assert.ok(page.text.includes("otherwise normal text"));
 });
 
+test("extractPage strips script and style bodies with whitespace in the end tag (Q-ADV-7)", () => {
+  const wrap = (inner: string) =>
+    `<html><head><title>T</title></head><body><main><p>real page content for extraction</p>${inner}</main></body></html>`;
+  for (const [html, secret] of [
+    [wrap(`<script>SECRETSCRIPT</script >`), "SECRETSCRIPT"],
+    [wrap(`<script>SECRETSCRIPT</script\n>`), "SECRETSCRIPT"],
+    [wrap(`<style>SECRETSTYLE</style\t>`), "SECRETSTYLE"],
+    [wrap(`<style>SECRETSTYLE</style >`), "SECRETSTYLE"],
+  ] as const) {
+    const page = extractPage(html, "https://example.com/");
+    assert.ok(!page.text.includes(secret), `leaked: ${secret}`);
+    assert.ok(page.text.includes("real page content"), "real content must survive");
+  }
+});
+
+test("extractPage drops an unclosed script or style body entirely (Q-ADV-7)", () => {
+  const big = "x".repeat(100_000);
+  const scriptPage = extractPage(
+    `<html><head><title>T</title></head><body><main><p>real page content</p><script>${big}`,
+    "https://example.com/",
+  );
+  assert.ok(scriptPage.text.includes("real page content"));
+  assert.ok(scriptPage.text.length < 1000, `unclosed script leaked ${scriptPage.text.length} chars`);
+  const stylePage = extractPage(
+    `<html><head><title>T</title></head><body><main><p>real page content</p><style>${big}`,
+    "https://example.com/",
+  );
+  assert.ok(stylePage.text.length < 1000, `unclosed style leaked ${stylePage.text.length} chars`);
+  // A normally closed script still strips, and following text survives.
+  const closed = extractPage(
+    `<html><head><title>T</title></head><body><main><script>var a = 1;</script><p>after script content</p></main></body></html>`,
+    "https://example.com/",
+  );
+  assert.ok(closed.text.includes("after script content"));
+  assert.ok(!closed.text.includes("var a"));
+});
+
 test("extractPage pulls title, main text, headings and links", () => {
   const html = `<!doctype html><html><head><title>Promise | MDN</title></head>
   <body><nav>navigation junk that should mostly be ignored</nav>
