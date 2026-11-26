@@ -3,8 +3,9 @@
 // interrupted crawl keeps what it already collected).
 //
 //   node src/crawl.ts [sourceName ...]   (default: all sources)
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { crawlSource, type Source } from "./crawler.ts";
+import { readPagesJsonl } from "./pages-file.ts";
 
 // The frozen corpus (decided 2026-11-16): developer documentation only.
 export const SOURCES: Source[] = [
@@ -45,14 +46,7 @@ async function main(): Promise<void> {
 
   const alreadyHave = new Set<string>();
   if (existsSync(OUT)) {
-    for (const line of readFileSync(OUT, "utf-8").split("\n")) {
-      if (!line.trim()) continue;
-      try {
-        alreadyHave.add(JSON.parse(line).url);
-      } catch {
-        // torn last line from an interrupted run — ignore it
-      }
-    }
+    for (const page of readPagesJsonl(OUT)) alreadyHave.add(page.url);
     console.log(`resume: ${alreadyHave.size} pages already stored`);
   }
 
