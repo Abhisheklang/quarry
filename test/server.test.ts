@@ -23,7 +23,7 @@ writeFileSync(
         len: 6,
       },
     ],
-    postings: { promise: [[0, [0]]] },
+    postings: { promis: [[0, [0]]] }, // queries stem "promise" to "promis"
     avgLen: 6,
     sources: { test: 1 },
   }),
