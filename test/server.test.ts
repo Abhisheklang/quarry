@@ -89,6 +89,20 @@ test("/api/search honours the offset parameter (U1)", async () => {
   assert.equal(pastBody.results.length, 0);
 });
 
+test("page furniture: footer everywhere, required input, safe shortcut, mobile dashlink (U3, U4, U5, U7)", async () => {
+  for (const path of ["/", "/search?q=promise", "/dashboard"]) {
+    const res = await fetch(`http://127.0.0.1:${HEADERS_PORT}${path}`);
+    const html = await res.text();
+    assert.ok(html.includes("https://github.com/Abhisheklang"), `${path} must carry the GitHub link`);
+    assert.ok(html.includes("<footer>"), `${path} must have a footer`);
+    assert.ok(!html.includes(".dashlink{display:none}"), "dashboard link must not vanish on small screens (U3)");
+    assert.ok(html.includes("e.ctrlKey"), "the / shortcut must ignore modified keypresses (U4)");
+    assert.ok(html.includes("SELECT|BUTTON|A"), "the / shortcut must not steal keys from interactive elements (U4)");
+  }
+  const home = await (await fetch(`http://127.0.0.1:${HEADERS_PORT}/`)).text();
+  assert.ok(home.includes("required"), "the home search input must be required so an empty search stays put (U5)");
+});
+
 test("pages ship a dark color scheme driven by CSS variables (U2)", async () => {
   const res = await fetch(`http://127.0.0.1:${HEADERS_PORT}/`);
   const html = await res.text();
