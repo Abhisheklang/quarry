@@ -103,7 +103,7 @@ src/
   build-index.ts  index build CLI
   server.ts       web service: search UI, results, API, dashboard
 test/             node:test suites for text, robots and ranking
-assets/           logo (SVG + PNG) and its generator script
+assets/           logo (SVG + PNG) and its generator script (needs Pillow: pip install -r assets/requirements.txt)
 docs/             architecture notes, screenshots, demo recording
 ```
 

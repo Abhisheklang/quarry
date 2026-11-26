@@ -1,0 +1,4 @@
+# Dev-only tooling for assets/make_logo.py (the logo generator).
+# The shipped engine is zero-dependency Node; this file is only for
+# regenerating the logo PNGs on a developer machine.
+Pillow

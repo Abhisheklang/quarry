@@ -2,6 +2,8 @@
 """Render the Quarry logo PNGs from the brand geometry.
 Badge: dark slate rounded square. Mark: a magnifier whose lens holds three
 amber strata layers — searching down through the layers of the docs.
+Requires Pillow (dev-only tooling, not part of the shipped engine):
+    pip install -r assets/requirements.txt
 Run: python3 assets/make_logo.py
 """
 from PIL import Image, ImageDraw
