@@ -40,17 +40,40 @@ export class Robots {
 
   static parse(body: string): Robots {
     const r = new Robots();
-    let inOurGroup = false;
+    // A robots.txt group can name several agents on consecutive user-agent
+    // lines that share one rule block. Accumulate the group's agents and
+    // apply its rules if any of them is "*" or our own agent. The group
+    // ends at a blank line, or at a user-agent line that appears after
+    // rules have already started.
+    let agents = new Set<string>();
+    let rulesStarted = false;
+    const inOurGroup = () => agents.has("*") || agents.has("quarrybot");
     for (const line of body.split(/\r?\n/)) {
       const t = line.trim();
+      if (!t) {
+        agents = new Set();
+        rulesStarted = false;
+        continue;
+      }
+      if (t.startsWith("#")) continue;
       const ua = t.match(/^user-agent:\s*(.+)$/i);
       if (ua) {
-        const agent = ua[1].trim().toLowerCase();
-        inOurGroup = agent === "*" || agent === "quarrybot";
+        if (rulesStarted) {
+          agents = new Set();
+          rulesStarted = false;
+        }
+        agents.add(ua[1].trim().toLowerCase());
         continue;
       }
       const dis = t.match(/^disallow:\s*(\S*)$/i);
-      if (dis && inOurGroup && dis[1]) r.disallow.push(dis[1]);
+      if (dis) {
+        rulesStarted = true;
+        if (inOurGroup() && dis[1]) r.disallow.push(dis[1]);
+        continue;
+      }
+      // Any other directive (allow, crawl-delay, ...) also means the
+      // current group's rule block has started.
+      if (t.includes(":")) rulesStarted = true;
     }
     return r;
   }

@@ -22,6 +22,29 @@ test("robots: another agent's blanket ban does not apply to us", () => {
   assert.equal(r.allows("https://example.com/anything"), true);
 });
 
+test("robots: shared rules in a multi-agent group apply to us", () => {
+  const body = `
+User-agent: *
+User-agent: BadBot
+Disallow: /private/
+`;
+  const r = Robots.parse(body);
+  assert.equal(r.allows("https://example.com/private/page"), false);
+  assert.equal(r.allows("https://example.com/docs/page"), true);
+});
+
+test("robots: a user-agent line after rules starts a new group", () => {
+  const body = `
+User-agent: BadBot
+Disallow: /private/
+User-agent: *
+Disallow: /api/
+`;
+  const r = Robots.parse(body);
+  assert.equal(r.allows("https://example.com/private/page"), true);
+  assert.equal(r.allows("https://example.com/api/search"), false);
+});
+
 test("normalizeUrl strips fragments and tracking params", () => {
   assert.equal(
     normalizeUrl("https://Example.com/docs/page?utm_source=x#section"),
