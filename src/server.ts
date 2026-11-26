@@ -336,6 +336,17 @@ const server = createServer((req, res) => {
     res.end(body);
   };
 
+  // The server is read-only: only GET and HEAD are meaningful. Anything
+  // else gets a 405 instead of being silently served like a GET.
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    res.writeHead(405, {
+      "content-type": "text/plain; charset=utf-8",
+      allow: "GET, HEAD",
+      ...SECURITY_HEADERS,
+    });
+    return res.end("Method not allowed");
+  }
+
   if (url.pathname === "/api/search" || url.pathname === "/api/stats") {
     const ip = req.socket.remoteAddress ?? "unknown";
     if (rateLimited(ip)) {

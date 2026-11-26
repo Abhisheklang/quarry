@@ -89,6 +89,17 @@ test("/api/search honours the offset parameter (U1)", async () => {
   assert.equal(pastBody.results.length, 0);
 });
 
+test("non-GET methods are rejected with 405 (SEC4)", async () => {
+  for (const method of ["POST", "PUT", "DELETE"]) {
+    const res = await fetch(`http://127.0.0.1:${HEADERS_PORT}/`, { method });
+    assert.equal(res.status, 405, `${method} / should be 405`);
+    assert.equal(res.headers.get("allow"), "GET, HEAD");
+    await res.text();
+  }
+  const head = await fetch(`http://127.0.0.1:${HEADERS_PORT}/`, { method: "HEAD" });
+  assert.equal(head.status, 200);
+});
+
 test("security headers present on a 404 response", async () => {
   const res = await fetch(`http://127.0.0.1:${HEADERS_PORT}/no-such-page`);
   assert.equal(res.status, 404);
