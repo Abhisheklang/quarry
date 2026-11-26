@@ -276,15 +276,29 @@ export async function crawlSource(
 
   // Small worker pool sharing the queue; the per-host start delay above is
   // enforced across all workers, so politeness holds under concurrency.
+  // A worker that finds the queue momentarily empty waits while a sibling
+  // fetch is still in flight, because that fetch may enqueue more links.
+  // It exits only when the queue is empty AND nothing is in flight (so no
+  // new links can arrive), or when the page budget is spent. Pages already
+  // stored from a previous run are still fetched to expand their links;
+  // fetchOne skips storing them again.
+  let inFlight = 0;
   async function worker(): Promise<void> {
-    while (queue.length > 0 && fetched < source.maxPages && attempts < source.maxPages) {
-      const url = queue.shift()!;
-      if (hooks.alreadyHave?.has(url)) {
-        // already stored from a previous run: still expand its links cheaply
-        // by fetching — correctness of coverage beats saving one request.
+    for (;;) {
+      if (attempts >= source.maxPages || fetched >= source.maxPages) return;
+      const url = queue.shift();
+      if (url === undefined) {
+        if (inFlight === 0) return;
+        await new Promise((r) => setTimeout(r, 5));
+        continue;
       }
       if (!robots.allows(url)) continue;
-      await fetchOne(url);
+      inFlight++;
+      try {
+        await fetchOne(url);
+      } finally {
+        inFlight--;
+      }
     }
   }
 

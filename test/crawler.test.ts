@@ -162,6 +162,38 @@ test("crawlSource bounds total fetches at maxPages when pages return 404 (S2)", 
   }
 });
 
+test("crawlSource worker pool fetches concurrently, not serially (K1)", async () => {
+  // Every page fetch takes 60 ms; the seed links to 4 leaves. A working
+  // pool of 2 must overlap fetches (max in flight >= 2); the old pool
+  // exited on the empty seed queue and never exceeded 1.
+  let inFlight = 0;
+  let maxInFlight = 0;
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (input: unknown) => {
+    const url = String(input);
+    if (url.endsWith("/robots.txt")) return new Response("", { status: 404 });
+    inFlight++;
+    maxInFlight = Math.max(maxInFlight, inFlight);
+    await new Promise((r) => setTimeout(r, 60));
+    inFlight--;
+    if (url === "https://example.com/docs") {
+      const links = [1, 2, 3, 4].map((i) => `<a href="/docs/leaf${i}">l${i}</a>`).join("");
+      return new Response(
+        `<html><head><title>Hub</title></head><body><main><p>${LONG}</p>${links}</main></body></html>`,
+        { headers: { "content-type": "text/html" } },
+      );
+    }
+    return new Response(DOC_HTML, { headers: { "content-type": "text/html" } });
+  }) as typeof fetch;
+  try {
+    const fetched = await crawlSource(DOC_SOURCE, {}, { delayMs: 0, concurrency: 2 });
+    assert.equal(fetched, 5);
+    assert.ok(maxInFlight >= 2, `expected concurrent fetches, max in flight was ${maxInFlight}`);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
 test("crawlSource stores a direct 200 response under its own URL", async () => {
   const restore = stubFetch(
     () => new Response(DOC_HTML, { headers: { "content-type": "text/html" } }),
