@@ -110,7 +110,15 @@ export function stem(word: string): string {
 }
 
 export function tokenize(text: string): string[] {
-  const raw = text.toLowerCase().split(/[^a-z0-9]+/);
+  // Language names written with symbols would otherwise vanish: splitting
+  // on non-alphanumerics turns "C++" into a lone "c" (dropped as too
+  // short) and "C#" likewise. Expand them to searchable word forms first;
+  // the same expansion runs at index time and query time, so they meet.
+  const prepared = text
+    .toLowerCase()
+    .replace(/c\+\+/g, " cpp ")
+    .replace(/c#/g, " csharp ");
+  const raw = prepared.split(/[^a-z0-9]+/);
   const out: string[] = [];
   for (const tok of raw) {
     if (tok.length < 2) continue;

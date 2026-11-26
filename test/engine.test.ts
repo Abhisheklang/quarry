@@ -71,6 +71,23 @@ test("offset pages through the full result set (U1)", () => {
   assert.equal(urls.size, 25); // pages are disjoint and cover the whole set
 });
 
+test("a C++ page is findable by searching for C++ (K3)", () => {
+  const cppIndex = buildIndex([
+    page(
+      "https://docs.example/cpp",
+      "MDN",
+      "C++ guide",
+      "C++ is a compiled language. Modern C++ code uses smart pointers and templates throughout.",
+    ),
+    ...corpus,
+  ]);
+  const out = search(cppIndex, "C++");
+  assert.ok(out.total >= 1);
+  assert.equal(out.results[0].url, "https://docs.example/cpp");
+  const sharp = search(cppIndex, "C#");
+  assert.equal(sharp.total, 0); // no C# page in this corpus
+});
+
 test("source filter restricts results", () => {
   const out = search(index, "promise", { source: "Node.js" });
   assert.ok(out.results.every((r) => r.source === "Node.js"));

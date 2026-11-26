@@ -17,6 +17,13 @@ test("tokenize lowercases, stems and drops stopwords", () => {
   assert.ok(!tokens.includes("do"));
 });
 
+test("tokenize keeps C++ and C# as searchable terms (K3)", () => {
+  assert.ok(tokenize("C++").includes("cpp"));
+  assert.ok(tokenize("C#").includes("csharp"));
+  assert.ok(tokenize("How does C++ work").includes("cpp"));
+  assert.ok(tokenize("C# generics").includes("csharp"));
+});
+
 test("extractPage finds unquoted hrefs (Node.js docs style)", () => {
   const html = `<html><head><title>Index</title></head><body><main>
   <a class=nav-assert href=assert.html>Assertion testing</a>
