@@ -66,6 +66,50 @@ test("robots: Allow rules reopen a subtree of a Disallow (K8)", () => {
   assert.equal(r.allows("https://example.com/docs/private/x"), false);
 });
 
+test("robots: a 5xx robots.txt means complete disallow (Q-ADV-3)", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    for (const status of [500, 503, 599]) {
+      globalThis.fetch = async () => new Response("server error", { status });
+      const r = await Robots.load("https://example.com");
+      assert.equal(r.allows("https://example.com/anything"), false, `status ${status}`);
+      assert.equal(r.allows("https://example.com/"), false, `status ${status}`);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("robots: an unreachable robots.txt means complete disallow (Q-ADV-3)", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => {
+      throw new Error("network down");
+    };
+    const r = await Robots.load("https://example.com");
+    assert.equal(r.allows("https://example.com/anything"), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("robots: a 4xx robots.txt still means everything allowed (Q-ADV-3)", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => new Response("not found", { status: 404 });
+    const r = await Robots.load("https://example.com");
+    assert.equal(r.allows("https://example.com/anything"), true);
+    // A healthy 200 robots.txt is still parsed normally.
+    globalThis.fetch = async () =>
+      new Response("User-agent: *\nDisallow: /private/\n", { status: 200 });
+    const parsed = await Robots.load("https://example.com");
+    assert.equal(parsed.allows("https://example.com/private/x"), false);
+    assert.equal(parsed.allows("https://example.com/docs/page"), true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("normalizeUrl strips fragments and tracking params", () => {
   assert.equal(
     normalizeUrl("https://Example.com/docs/page?utm_source=x#section"),

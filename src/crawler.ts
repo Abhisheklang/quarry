@@ -55,6 +55,14 @@ export class Robots {
   private disallow: string[] = [];
   private allow: string[] = [];
 
+  // A robots set that disallows every path: the pattern "/" prefix-matches
+  // all paths, so allows() returns false for everything.
+  static disallowAll(): Robots {
+    const r = new Robots();
+    r.disallow.push("/");
+    return r;
+  }
+
   static parse(body: string): Robots {
     const r = new Robots();
     // A robots.txt group can name several agents on consecutive user-agent
@@ -113,12 +121,18 @@ export class Robots {
         headers: { "user-agent": USER_AGENT },
         signal: AbortSignal.timeout(10000),
       });
+      // RFC 9309 section 2.3.1.3: a 4xx robots.txt means no restrictions
+      // (everything allowed), but a 5xx response means the crawler must
+      // assume complete disallow for the origin (Q-ADV-3).
+      if (res.status >= 500 && res.status <= 599) return Robots.disallowAll();
       if (!res.ok) return new Robots(); // no robots file: everything allowed
       const body = await readBodyCapped(res, MAX_ROBOTS_BYTES);
       if (body === null) return new Robots(); // oversized robots file: ignore it
       return Robots.parse(body);
     } catch {
-      return new Robots(); // unreachable robots file: proceed, delays still apply
+      // A network failure is "unreachable" under the same RFC section:
+      // complete disallow, not allow-all (Q-ADV-3).
+      return Robots.disallowAll();
     }
   }
 
