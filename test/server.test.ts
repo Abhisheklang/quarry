@@ -1,7 +1,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -87,6 +87,15 @@ test("/api/search honours the offset parameter (U1)", async () => {
   const pastBody = JSON.parse(await past.text());
   assert.equal(pastBody.total, 1);
   assert.equal(pastBody.results.length, 0);
+});
+
+test("asset routes serve the exact asset bytes (R6)", async () => {
+  const res = await fetch(`http://127.0.0.1:${HEADERS_PORT}/assets/logo.png`);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("content-type"), "image/png");
+  const served = Buffer.from(await res.arrayBuffer());
+  const onDisk = readFileSync(new URL("../assets/logo.png", import.meta.url).pathname);
+  assert.ok(served.equals(onDisk), "served logo must equal the file on disk");
 });
 
 test("/api/stats returns indexSizeMb as a number (K7)", async () => {

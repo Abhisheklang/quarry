@@ -23,6 +23,18 @@ if (!existsSync(INDEX_PATH)) {
   );
   process.exit(1);
 }
+// Static assets never change at runtime: read them once at startup
+// instead of doing synchronous filesystem reads on every request.
+const ASSETS: Record<string, { type: string; body: Buffer }> = {};
+for (const [route, file, type] of [
+  ["/assets/logo.png", "logo.png", "image/png"],
+  ["/assets/favicon.png", "favicon.png", "image/png"],
+  ["/assets/logo.svg", "logo.svg", "image/svg+xml"],
+] as const) {
+  const path = new URL(`../assets/${file}`, import.meta.url).pathname;
+  if (existsSync(path)) ASSETS[route] = { type, body: readFileSync(path) };
+}
+
 const index = JSON.parse(readFileSync(INDEX_PATH, "utf-8")) as Index;
 const indexSizeMb = Number((statSync(INDEX_PATH).size / 1_000_000).toFixed(1));
 const info = stats(index);
@@ -385,14 +397,8 @@ const server = createServer((req, res) => {
   if (url.pathname === "/api/stats") {
     return send(200, "application/json", JSON.stringify({ ...info, indexSizeMb }, null, 2));
   }
-  if (url.pathname === "/assets/logo.png" || url.pathname === "/assets/favicon.png") {
-    const file = new URL(`../assets/${url.pathname.split("/").pop()}`, import.meta.url).pathname;
-    if (existsSync(file)) return send(200, "image/png", readFileSync(file));
-  }
-  if (url.pathname === "/assets/logo.svg") {
-    const file = new URL("../assets/logo.svg", import.meta.url).pathname;
-    if (existsSync(file)) return send(200, "image/svg+xml", readFileSync(file));
-  }
+  const asset = ASSETS[url.pathname];
+  if (asset) return send(200, asset.type, asset.body);
   if (url.pathname === "/health") return send(200, "application/json", `{"ok":true}`);
   return send(404, "text/html; charset=utf-8", pageShell("Not found — Quarry", `<div class="wrap"><div class="empty"><h2>404</h2><p>That page is not in the index — or anywhere else here. <a href="/">Back to search</a></p></div></div>`));
 });
