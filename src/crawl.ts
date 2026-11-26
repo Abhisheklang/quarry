@@ -2,7 +2,14 @@
 // appends pages to data/pages.jsonl (one JSON page per line, so an
 // interrupted crawl keeps what it already collected).
 //
-//   node src/crawl.ts [sourceName ...]   (default: all sources)
+//   node src/crawl.ts <sourceName ...>   crawl the named live sources
+//   node src/crawl.ts --live             crawl all live sources
+//   node src/crawl.ts --dry-run [names]  list the selected sources, fetch nothing
+//   node src/crawl.ts --help             show this usage
+//
+// A bare run used to crawl every live source by default (R9): live
+// crawling now always takes an explicit selection, either source names
+// or --live.
 import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { crawlSource, type Source } from "./crawler.ts";
 import { readPagesJsonl } from "./pages-file.ts";
@@ -37,20 +44,85 @@ export const SOURCES: Source[] = [
 
 const OUT = new URL("../data/pages.jsonl", import.meta.url).pathname;
 
-async function main(): Promise<void> {
-  mkdirSync(new URL("../data", import.meta.url).pathname, { recursive: true });
-  const only = process.argv.slice(2);
-  const unknown = only.filter((name) => !SOURCES.some((s) => s.name === name));
+export interface CliSelection {
+  sources: Source[];
+  dryRun: boolean;
+  help: boolean;
+}
+
+// Parse the CLI arguments into a selection. Pure, so the argument rules
+// are testable without spawning a crawl. Throws an Error whose message
+// is shown to the user (exit 1) for an unknown source name (the V7
+// check), an unknown flag, --live combined with names, or no selection
+// at all (R9: a bare run must not default to the live corpus).
+export function parseArgs(argv: string[]): CliSelection {
+  const names: string[] = [];
+  let live = false;
+  let dryRun = false;
+  let help = false;
+  for (const arg of argv) {
+    if (arg === "--live") live = true;
+    else if (arg === "--dry-run") dryRun = true;
+    else if (arg === "--help" || arg === "-h") help = true;
+    else if (arg.startsWith("-")) throw new Error(`unknown flag: ${arg}`);
+    else names.push(arg);
+  }
+  if (help) return { sources: [], dryRun, help };
+  const unknown = names.filter((name) => !SOURCES.some((s) => s.name === name));
   if (unknown.length) {
-    console.error(
+    throw new Error(
       `unknown source name(s): ${unknown.join(", ")}. Known sources: ${SOURCES.map((s) => s.name).join(", ")}`,
     );
+  }
+  if (live && names.length) {
+    throw new Error("--live selects all sources; do not combine it with source names");
+  }
+  if (!live && !names.length && !dryRun) {
+    throw new Error(
+      "no sources selected: name the sources to crawl, or pass --live for all of them (see --help)",
+    );
+  }
+  const sources = live || !names.length
+    ? SOURCES
+    : SOURCES.filter((s) => names.includes(s.name));
+  return { sources, dryRun, help };
+}
+
+export function usage(): string {
+  return [
+    "Usage:",
+    "  node src/crawl.ts <sourceName ...>   crawl the named live sources",
+    "  node src/crawl.ts --live             crawl all live sources",
+    "  node src/crawl.ts --dry-run [names]  list the selected sources, fetch nothing",
+    "  node src/crawl.ts --help             show this usage",
+    "",
+    `Known sources: ${SOURCES.map((s) => s.name).join(", ")}`,
+    "Live crawling always takes an explicit selection: a bare run fetches nothing.",
+  ].join("\n");
+}
+
+async function main(): Promise<void> {
+  let selection: CliSelection;
+  try {
+    selection = parseArgs(process.argv.slice(2));
+  } catch (e) {
+    console.error(e instanceof Error ? e.message : String(e));
     process.exit(1);
   }
-  const sources = only.length
-    ? SOURCES.filter((s) => only.includes(s.name))
-    : SOURCES;
+  if (selection.help) {
+    console.log(usage());
+    return;
+  }
+  if (selection.dryRun) {
+    console.log("dry run: no pages will be fetched");
+    for (const s of selection.sources) {
+      console.log(`  ${s.name}: seed ${s.seed} (cap ${s.maxPages})`);
+    }
+    return;
+  }
+  const sources = selection.sources;
 
+  mkdirSync(new URL("../data", import.meta.url).pathname, { recursive: true });
   const alreadyHave = new Set<string>();
   if (existsSync(OUT)) {
     for (const page of readPagesJsonl(OUT)) alreadyHave.add(page.url);
@@ -80,4 +152,8 @@ async function main(): Promise<void> {
   );
 }
 
-await main();
+// Run only as the CLI entry point, so tests can import parseArgs and
+// SOURCES without starting a crawl.
+if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
+  await main();
+}

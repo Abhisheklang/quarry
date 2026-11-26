@@ -59,7 +59,7 @@ Requires Node.js 22 or newer. There are no packages to install.
 git clone https://github.com/Abhisheklang/quarry.git
 cd quarry
 
-node src/crawl.ts        # crawl the corpus into data/pages.jsonl (resumable)
+node src/crawl.ts --live  # crawl the corpus into data/pages.jsonl (resumable)
 node src/build-index.ts  # build data/index.json
 node src/server.ts       # serve on http://localhost:3000
 ```
@@ -81,7 +81,7 @@ A deliberately fenced allowlist — deep on one territory instead of thin on eve
 | TypeScript | `typescriptlang.org/docs/` | 700 pages |
 | React | `react.dev/` | 500 pages |
 
-Re-running `node src/crawl.ts` resumes: pages already stored are not stored twice. The index data (`data/`) is generated and intentionally not committed; the screenshots above are from a reference crawl run with exactly these settings.
+Re-running `node src/crawl.ts --live` resumes: pages already stored are not stored twice. Live crawling always takes an explicit selection (source names or `--live`); a bare run fetches nothing, and `--dry-run` lists the selected sources without fetching. The index data (`data/`) is generated and intentionally not committed; the screenshots above are from a reference crawl run with exactly these settings.
 
 ## How Quarry works: crawl, index, rank
 
