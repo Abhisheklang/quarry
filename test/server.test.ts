@@ -78,6 +78,17 @@ for (const path of ["/", "/search?q=promise", "/dashboard", "/api/search?q=promi
   });
 }
 
+test("/api/search honours the offset parameter (U1)", async () => {
+  const first = await fetch(`http://127.0.0.1:${HEADERS_PORT}/api/search?q=promise&limit=1&offset=0`);
+  const firstBody = JSON.parse(await first.text());
+  assert.equal(firstBody.total, 1);
+  assert.equal(firstBody.results.length, 1);
+  const past = await fetch(`http://127.0.0.1:${HEADERS_PORT}/api/search?q=promise&limit=1&offset=1`);
+  const pastBody = JSON.parse(await past.text());
+  assert.equal(pastBody.total, 1);
+  assert.equal(pastBody.results.length, 0);
+});
+
 test("security headers present on a 404 response", async () => {
   const res = await fetch(`http://127.0.0.1:${HEADERS_PORT}/no-such-page`);
   assert.equal(res.status, 404);

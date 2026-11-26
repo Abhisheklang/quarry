@@ -141,10 +141,11 @@ function makeSnippet(doc: IndexedDoc, queryTerms: string[]): string {
 export function search(
   index: Index,
   query: string,
-  opts: { limit?: number; source?: string } = {},
+  opts: { limit?: number; offset?: number; source?: string } = {},
 ): SearchOutcome {
   const started = performance.now();
   const limit = opts.limit ?? 10;
+  const offset = Math.max(0, opts.offset ?? 0);
   const terms = [...new Set(tokenize(query))];
   if (terms.length === 0) {
     return { total: 0, timeMs: 0, results: [] };
@@ -171,7 +172,7 @@ export function search(
   }
 
   const ranked = [...scores.entries()].sort((a, b) => b[1] - a[1]);
-  const results = ranked.slice(0, limit).map(([docId, score]) => {
+  const results = ranked.slice(offset, offset + limit).map(([docId, score]) => {
     const doc = index.docs[docId];
     return {
       url: doc.url,

@@ -49,6 +49,28 @@ test("snippets highlight the matched terms", () => {
   assert.ok(out.results[0].snippet.includes("**"));
 });
 
+test("offset pages through the full result set (U1)", () => {
+  const many = buildIndex(
+    Array.from({ length: 25 }, (_, i) =>
+      page(
+        `https://docs.example/widget${i}`,
+        "MDN",
+        `Widget ${i}`,
+        `The widget reference page ${i} describes widget behaviour and widget usage in detail.`,
+      ),
+    ),
+  );
+  const p1 = search(many, "widget", { limit: 10, offset: 0 });
+  const p2 = search(many, "widget", { limit: 10, offset: 10 });
+  const p3 = search(many, "widget", { limit: 10, offset: 20 });
+  assert.equal(p1.total, 25);
+  assert.equal(p1.results.length, 10);
+  assert.equal(p2.results.length, 10);
+  assert.equal(p3.results.length, 5);
+  const urls = new Set([...p1.results, ...p2.results, ...p3.results].map((r) => r.url));
+  assert.equal(urls.size, 25); // pages are disjoint and cover the whole set
+});
+
 test("source filter restricts results", () => {
   const out = search(index, "promise", { source: "Node.js" });
   assert.ok(out.results.every((r) => r.source === "Node.js"));

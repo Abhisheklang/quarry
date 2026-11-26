@@ -202,8 +202,30 @@ function homePage(): string {
   return pageShell("Quarry — search the docs", body);
 }
 
-function resultsPage(q: string, source: string): string {
-  const outcome = search(index, q, { limit: 10, source: source || undefined });
+const PAGE_SIZE = 10;
+
+function resultsPage(q: string, source: string, page = 1): string {
+  let outcome = search(index, q, {
+    limit: PAGE_SIZE,
+    offset: (page - 1) * PAGE_SIZE,
+    source: source || undefined,
+  });
+  const totalPages = Math.max(1, Math.ceil(outcome.total / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  if (currentPage !== page) {
+    // Asked for a page past the end: serve the last page instead of none.
+    outcome = search(index, q, {
+      limit: PAGE_SIZE,
+      offset: (currentPage - 1) * PAGE_SIZE,
+      source: source || undefined,
+    });
+  }
+  const pageLink = (n: number, label: string) =>
+    `<a class="chip" href="/search?q=${encodeURIComponent(q)}${source ? `&source=${encodeURIComponent(source)}` : ""}&page=${n}">${label}</a>`;
+  const pager =
+    totalPages > 1
+      ? `<nav class="chips" aria-label="Result pages">${currentPage > 1 ? pageLink(currentPage - 1, "← Previous") : ""}<span class="chip chip-active">Page ${currentPage} of ${totalPages.toLocaleString()}</span>${currentPage < totalPages ? pageLink(currentPage + 1, "Next →") : ""}</nav>`
+      : "";
   const items = outcome.results
     .map(
       (r, i) => `
@@ -229,6 +251,7 @@ function resultsPage(q: string, source: string): string {
   ${sourceChips(source, q)}
   <p class="resultline">About ${outcome.total.toLocaleString()} results (${outcome.timeMs < 1000 ? `${outcome.timeMs} ms` : `${(outcome.timeMs / 1000).toFixed(2)} seconds`}) in ${source ? esc(source) : "all sources"}</p>
   ${outcome.results.length ? items : `<div class="empty"><h2>No results for “${esc(q)}”</h2><p>Quarry only answers from pages its crawler actually fetched. Try different words, or check the <a href="/dashboard">index dashboard</a> to see what the corpus covers.</p></div>`}
+  ${pager}
 </div>`;
   return pageShell(`${q} — Quarry`, body);
 }
@@ -324,7 +347,8 @@ const server = createServer((req, res) => {
   if (url.pathname === "/search") {
     const q = url.searchParams.get("q") ?? "";
     const source = url.searchParams.get("source") ?? "";
-    return send(200, "text/html; charset=utf-8", resultsPage(q, source));
+    const page = Math.max(1, Number(url.searchParams.get("page") ?? 1) || 1);
+    return send(200, "text/html; charset=utf-8", resultsPage(q, source, page));
   }
   if (url.pathname === "/dashboard") {
     return send(200, "text/html; charset=utf-8", dashboardPage());
@@ -333,7 +357,8 @@ const server = createServer((req, res) => {
     const q = url.searchParams.get("q") ?? "";
     const source = url.searchParams.get("source") ?? undefined;
     const limit = Math.min(50, Math.max(1, Number(url.searchParams.get("limit") ?? 10) || 10));
-    const outcome = search(index, q, { limit, source });
+    const offset = Math.max(0, Number(url.searchParams.get("offset") ?? 0) || 0);
+    const outcome = search(index, q, { limit, offset, source });
     return send(
       200,
       "application/json",
