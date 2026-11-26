@@ -269,12 +269,56 @@ function dashboardPage(): string {
 
 // ---------- server ----------
 
+// Security headers applied to every response in send(). The pages are
+// server-rendered by this same server and use an inline <style> block, an
+// inline <script> block and inline style attributes, so script-src and
+// style-src allow 'unsafe-inline' for 'self' content only; everything else
+// is locked to 'self' and framing is denied outright.
+const SECURITY_HEADERS: Record<string, string> = {
+  "content-security-policy":
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+  "x-content-type-options": "nosniff",
+  "referrer-policy": "same-origin",
+  "x-frame-options": "DENY",
+};
+
+// Basic per-IP rate limit for the JSON API routes (fixed window, in
+// memory, Node built-ins only). 60 requests per minute per IP is far
+// above human dashboard use (a page load plus a handful of searches) and
+// the crawler never calls this server, so only bursts trip it.
+const RATE_LIMIT = 60;
+const RATE_WINDOW_MS = 60_000;
+const rateBuckets = new Map<string, { count: number; resetAt: number }>();
+
+function rateLimited(ip: string): boolean {
+  const now = Date.now();
+  let bucket = rateBuckets.get(ip);
+  if (!bucket || now >= bucket.resetAt) {
+    bucket = { count: 0, resetAt: now + RATE_WINDOW_MS };
+    rateBuckets.set(ip, bucket);
+  }
+  bucket.count++;
+  if (rateBuckets.size > 10_000) {
+    for (const [key, b] of rateBuckets) {
+      if (now >= b.resetAt) rateBuckets.delete(key);
+    }
+  }
+  return bucket.count > RATE_LIMIT;
+}
+
 const server = createServer((req, res) => {
   const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
   const send = (code: number, type: string, body: string | Buffer) => {
-    res.writeHead(code, { "content-type": type });
+    res.writeHead(code, { "content-type": type, ...SECURITY_HEADERS });
     res.end(body);
   };
+
+  if (url.pathname === "/api/search" || url.pathname === "/api/stats") {
+    const ip = req.socket.remoteAddress ?? "unknown";
+    if (rateLimited(ip)) {
+      return send(429, "application/json", `{"error":"rate limit exceeded"}`);
+    }
+  }
 
   if (url.pathname === "/") return send(200, "text/html; charset=utf-8", homePage());
   if (url.pathname === "/search") {
