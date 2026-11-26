@@ -145,7 +145,7 @@ export interface Source {
 export interface CrawlHooks {
   alreadyHave?: Set<string>; // URLs from a previous run to skip (resume)
   onPage?: (page: CrawledPage) => void;
-  onProgress?: (source: string, fetched: number, queued: number) => void;
+  onProgress?: (source: string, fetched: number, queued: number, attempts: number) => void;
 }
 
 const SKIP_EXT = /\.(png|jpe?g|svg|gif|webp|ico|pdf|zip|tar|gz|mp4|webm|css|js|json|xml)$/i;
@@ -165,9 +165,14 @@ export async function crawlSource(
   const seen = new Set<string>([seed]);
   const queue: string[] = [seed];
   let fetched = 0;
+  // Every fetch attempt counts toward the maxPages budget, not only
+  // successful pages: stubs, error responses and failed fetches all
+  // increment attempts, and the worker loop stops at the budget.
+  let attempts = 0;
   let lastStart = 0;
 
   async function fetchOne(url: string): Promise<void> {
+    attempts++;
     const wait = Math.max(0, lastStart + delayMs - Date.now());
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     lastStart = Date.now();
@@ -252,9 +257,13 @@ export async function crawlSource(
     if (!hooks.alreadyHave?.has(finalUrl)) {
       hooks.onPage?.({ url: finalUrl, source: source.name, title, headings, text });
     }
-    hooks.onProgress?.(source.name, fetched, queue.length);
+    hooks.onProgress?.(source.name, fetched, queue.length, attempts);
 
     for (const link of links) {
+      // Bound queue and seen growth to the budget: once maxPages distinct
+      // URLs are known, no further links are enqueued, because the
+      // attempts budget could never fetch them anyway.
+      if (seen.size >= source.maxPages) break;
       const n = normalizeUrl(link);
       if (!n || seen.has(n)) continue;
       if (!n.startsWith(source.allowedPrefix)) continue;
@@ -268,7 +277,7 @@ export async function crawlSource(
   // Small worker pool sharing the queue; the per-host start delay above is
   // enforced across all workers, so politeness holds under concurrency.
   async function worker(): Promise<void> {
-    while (queue.length > 0 && fetched < source.maxPages) {
+    while (queue.length > 0 && fetched < source.maxPages && attempts < source.maxPages) {
       const url = queue.shift()!;
       if (hooks.alreadyHave?.has(url)) {
         // already stored from a previous run: still expand its links cheaply
