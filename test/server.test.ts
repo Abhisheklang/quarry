@@ -89,6 +89,15 @@ test("/api/search honours the offset parameter (U1)", async () => {
   assert.equal(pastBody.results.length, 0);
 });
 
+test("pages ship a dark color scheme driven by CSS variables (U2)", async () => {
+  const res = await fetch(`http://127.0.0.1:${HEADERS_PORT}/`);
+  const html = await res.text();
+  assert.ok(html.includes("@media (prefers-color-scheme:dark)"), "dark scheme block missing");
+  assert.ok(html.includes("--link:"), "result link color must come from a variable");
+  assert.ok(!html.includes(".result h3 a{color:#1e3a8a"), "hardcoded light link color still present");
+  assert.ok(!html.includes(".result p{margin:0;color:#44403c"), "hardcoded light snippet color still present");
+});
+
 test("asset routes serve the exact asset bytes (R6)", async () => {
   const res = await fetch(`http://127.0.0.1:${HEADERS_PORT}/assets/logo.png`);
   assert.equal(res.status, 200);
