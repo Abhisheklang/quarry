@@ -16,3 +16,11 @@ jobs:
       # Quarry has zero dependencies — there is nothing to install.
       - name: Run tests
         run: node --test test/*.test.ts
+      # Typecheck gate (finding V5). The TypeScript compiler is CI-only
+      # tooling: it is installed with --no-save, so package.json keeps no
+      # dependencies and no devDependencies, and the shipped runtime stays
+      # zero-dependency Node built-ins only.
+      - name: Typecheck
+        run: |
+          npm install --no-save --no-audit --no-fund typescript@5.9.3 @types/node@22.20.7
+          ./node_modules/.bin/tsc --noEmit
