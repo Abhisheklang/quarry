@@ -148,7 +148,7 @@ function stripTags(html: string): string {
 
 export function extractPage(html: string, pageUrl: string): ExtractedPage {
   const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-  const title = titleMatch ? stripTags(titleMatch[1]) : "";
+  const title = stripTags(titleMatch?.[1] ?? "");
 
   // Prefer the <main> element when the page has one (documentation sites do);
   // it skips most navigation and footer boilerplate. Fall back to <article>,
@@ -166,7 +166,7 @@ export function extractPage(html: string, pageUrl: string): ExtractedPage {
   const headingParts: string[] = [];
   const hRe = /<h[12][^>]*>([\s\S]*?)<\/h[12]>/gi;
   let hm: RegExpExecArray | null;
-  while ((hm = hRe.exec(body)) !== null) headingParts.push(stripTags(hm[1]));
+  while ((hm = hRe.exec(body)) !== null) headingParts.push(stripTags(hm[1] ?? ""));
 
   const text = stripTags(body);
 
@@ -177,6 +177,7 @@ export function extractPage(html: string, pageUrl: string): ExtractedPage {
   let m: RegExpExecArray | null;
   while ((m = hrefRe.exec(html)) !== null) {
     const href = m[1] ?? m[2] ?? m[3];
+    if (href === undefined) continue;
     try {
       links.push(new URL(href, pageUrl).toString());
     } catch {
@@ -203,8 +204,8 @@ export function stem(word: string): string {
   if (w.endsWith("e") && w.length > 4) w = w.slice(0, -1);
   if (
     w.length > 3 &&
-    w[w.length - 1] === w[w.length - 2] &&
-    !"aeiou".includes(w[w.length - 1])
+    w.charAt(w.length - 1) === w.charAt(w.length - 2) &&
+    !"aeiou".includes(w.charAt(w.length - 1))
   ) {
     w = w.slice(0, -1);
   }

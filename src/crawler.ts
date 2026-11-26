@@ -84,7 +84,8 @@ export class Robots {
           agents = new Set();
           rulesStarted = false;
         }
-        agents.add(ua[1].trim().toLowerCase());
+        const agent = ua[1];
+        if (agent) agents.add(agent.trim().toLowerCase());
         continue;
       }
       const dis = t.match(/^disallow:\s*(\S+)/i);

@@ -230,7 +230,7 @@ function homePage(): string {
   </form>
   <div class="stats">
     <b>${info.documents.toLocaleString()}</b> pages indexed · <b>${info.terms.toLocaleString()}</b> terms · crawled and ranked by Quarry itself
-    <div class="sources-line">${SOURCE_NAMES.map((s) => `<span class="pill">${esc(s)} · ${info.sources[s].toLocaleString()}</span>`).join("")}</div>
+    <div class="sources-line">${SOURCE_NAMES.map((s) => `<span class="pill">${esc(s)} · ${(info.sources[s] ?? 0).toLocaleString()}</span>`).join("")}</div>
   </div>
   <footer>
     A working search engine built from scratch — own crawler, own index, own ranking. No search APIs.<br>

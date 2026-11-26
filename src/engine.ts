@@ -146,7 +146,7 @@ function makeSnippet(doc: IndexedDoc, queryTerms: string[]): string {
 export function search(
   index: Index,
   query: string,
-  opts: { limit?: number; offset?: number; source?: string } = {},
+  opts: { limit?: number; offset?: number; source?: string | undefined } = {},
 ): SearchOutcome {
   const started = performance.now();
   const limit = opts.limit ?? 10;
@@ -168,24 +168,29 @@ export function search(
     const df = posting.length;
     const idf = Math.log(1 + (n - df + 0.5) / (df + 0.5));
     for (const [docId, positions] of posting) {
-      if (opts.source && index.docs[docId].source !== opts.source) continue;
+      const doc = index.docs[docId];
+      if (!doc) continue;
+      if (opts.source && doc.source !== opts.source) continue;
       const tf = positions.length;
-      const dl = index.docs[docId].len;
+      const dl = doc.len;
       const denom = tf + K1 * (1 - B + (B * dl) / index.avgLen);
       scores.set(docId, (scores.get(docId) ?? 0) + idf * ((tf * (K1 + 1)) / denom));
     }
   }
 
   const ranked = [...scores.entries()].sort((a, b) => b[1] - a[1]);
-  const results = ranked.slice(offset, offset + limit).map(([docId, score]) => {
+  const results = ranked.slice(offset, offset + limit).flatMap(([docId, score]) => {
     const doc = index.docs[docId];
-    return {
-      url: doc.url,
-      source: doc.source,
-      title: doc.title,
-      score: Number(score.toFixed(3)),
-      snippet: makeSnippet(doc, terms),
-    };
+    if (!doc) return [];
+    return [
+      {
+        url: doc.url,
+        source: doc.source,
+        title: doc.title,
+        score: Number(score.toFixed(3)),
+        snippet: makeSnippet(doc, terms),
+      },
+    ];
   });
   return {
     total: ranked.length,
