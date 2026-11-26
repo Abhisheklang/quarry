@@ -45,6 +45,27 @@ Disallow: /api/
   assert.equal(r.allows("https://example.com/api/search"), false);
 });
 
+test("robots: wildcard Disallow rules are enforced (SEC2)", () => {
+  const r = Robots.parse(ROBOTS); // the fixture contains Disallow: /*/files/
+  assert.equal(r.allows("https://example.com/docs/files/x"), false);
+  assert.equal(r.allows("https://example.com/docs/page"), true);
+  const pdf = Robots.parse("User-agent: *\nDisallow: /tmp/*.pdf\n");
+  assert.equal(pdf.allows("https://example.com/tmp/a.pdf"), false);
+  assert.equal(pdf.allows("https://example.com/tmp/a.html"), true);
+});
+
+test("robots: a Disallow line with a trailing comment still applies (SEC3)", () => {
+  const r = Robots.parse("User-agent: *\nDisallow: /private/ # keep out\n");
+  assert.equal(r.allows("https://example.com/private/x"), false);
+  assert.equal(r.allows("https://example.com/docs/page"), true);
+});
+
+test("robots: Allow rules reopen a subtree of a Disallow (K8)", () => {
+  const r = Robots.parse("User-agent: *\nDisallow: /docs/\nAllow: /docs/public/\n");
+  assert.equal(r.allows("https://example.com/docs/public/x"), true);
+  assert.equal(r.allows("https://example.com/docs/private/x"), false);
+});
+
 test("normalizeUrl strips fragments and tracking params", () => {
   assert.equal(
     normalizeUrl("https://Example.com/docs/page?utm_source=x#section"),

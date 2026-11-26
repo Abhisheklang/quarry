@@ -33,10 +33,27 @@ export function normalizeUrl(raw: string): string | null {
   }
 }
 
-// Minimal robots.txt evaluation: rules from the "*" group plus a group
-// naming our own agent when present. Prefix matching on Disallow paths.
+// Robots.txt evaluation: rules from the "*" group plus a group naming
+// our own agent when present. Patterns follow RFC 9309: "*" matches any
+// sequence, a trailing "$" anchors the match to the end of the path, and
+// when several rules match, the longest pattern wins (ties go to Allow).
+function robotsPatternMatches(pattern: string, path: string): boolean {
+  let p = pattern;
+  let anchored = false;
+  if (p.endsWith("$")) {
+    anchored = true;
+    p = p.slice(0, -1);
+  }
+  const source = p
+    .split("*")
+    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join(".*");
+  return new RegExp(`^${source}${anchored ? "$" : ""}`).test(path);
+}
+
 export class Robots {
   private disallow: string[] = [];
+  private allow: string[] = [];
 
   static parse(body: string): Robots {
     const r = new Robots();
@@ -49,13 +66,18 @@ export class Robots {
     let rulesStarted = false;
     const inOurGroup = () => agents.has("*") || agents.has("quarrybot");
     for (const line of body.split(/\r?\n/)) {
-      const t = line.trim();
+      let t = line.trim();
       if (!t) {
         agents = new Set();
         rulesStarted = false;
         continue;
       }
       if (t.startsWith("#")) continue;
+      // A trailing comment ("Disallow: /private/ # keep out") is not part
+      // of the rule value; strip it before matching.
+      const hash = t.indexOf("#");
+      if (hash >= 0) t = t.slice(0, hash).trim();
+      if (!t) continue;
       const ua = t.match(/^user-agent:\s*(.+)$/i);
       if (ua) {
         if (rulesStarted) {
@@ -65,10 +87,16 @@ export class Robots {
         agents.add(ua[1].trim().toLowerCase());
         continue;
       }
-      const dis = t.match(/^disallow:\s*(\S*)$/i);
+      const dis = t.match(/^disallow:\s*(\S+)/i);
       if (dis) {
         rulesStarted = true;
         if (inOurGroup() && dis[1]) r.disallow.push(dis[1]);
+        continue;
+      }
+      const allow = t.match(/^allow:\s*(\S+)/i);
+      if (allow) {
+        rulesStarted = true;
+        if (inOurGroup() && allow[1]) r.allow.push(allow[1]);
         continue;
       }
       // Any other directive (allow, crawl-delay, ...) also means the
@@ -95,7 +123,17 @@ export class Robots {
 
   allows(url: string): boolean {
     const path = new URL(url).pathname;
-    return !this.disallow.some((d) => path.startsWith(d));
+    let longestDisallow = -1;
+    let longestAllow = -1;
+    for (const d of this.disallow) {
+      if (robotsPatternMatches(d, path)) longestDisallow = Math.max(longestDisallow, d.length);
+    }
+    for (const a of this.allow) {
+      if (robotsPatternMatches(a, path)) longestAllow = Math.max(longestAllow, a.length);
+    }
+    if (longestDisallow < 0) return true;
+    // Longest matching pattern wins; on a tie the Allow rule wins.
+    return longestAllow >= longestDisallow;
   }
 }
 
