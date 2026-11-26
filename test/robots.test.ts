@@ -118,6 +118,24 @@ Allow: /private/
   assert.equal(r.allows("https://example.com/private/x"), false);
 });
 
+test("robots: Disallow patterns match against the query string (Q-ADV-4)", () => {
+  const r = Robots.parse("User-agent: *\nDisallow: /*?print=\n");
+  assert.equal(r.allows("https://example.com/page?print=1"), false);
+  assert.equal(r.allows("https://example.com/page"), true);
+  assert.equal(r.allows("https://example.com/page?other=1"), true);
+});
+
+test("robots: non-ASCII patterns match percent-encoded paths (Q-ADV-4)", () => {
+  const r = Robots.parse("User-agent: *\nDisallow: /café/\n");
+  assert.equal(r.allows("https://example.com/caf%C3%A9/menu"), false);
+  assert.equal(r.allows("https://example.com/cafe/menu"), true);
+  // The same rule written pre-encoded, in either hex case, also matches.
+  const upper = Robots.parse("User-agent: *\nDisallow: /caf%C3%A9/\n");
+  assert.equal(upper.allows("https://example.com/caf%C3%A9/menu"), false);
+  const lower = Robots.parse("User-agent: *\nDisallow: /caf%c3%a9/\n");
+  assert.equal(lower.allows("https://example.com/caf%C3%A9/menu"), false);
+});
+
 test("robots: a 5xx robots.txt means complete disallow (Q-ADV-3)", async () => {
   const originalFetch = globalThis.fetch;
   try {

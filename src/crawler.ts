@@ -39,6 +39,32 @@ export function normalizeUrl(raw: string): string | null {
 // token (Q-ADV-2). Patterns follow RFC 9309: "*" matches any sequence, a
 // trailing "$" anchors the match to the end of the path, and when several
 // rules match, the longest pattern wins (ties go to Allow).
+// RFC 9309 section 2.2.2: before comparison, octets outside ASCII in a
+// rule pattern must be percent-encoded (the URL side already is, because
+// URL pathname and search are serialised percent-encoded). Existing
+// percent escapes in the pattern are normalised to uppercase hex so a
+// pattern written as /caf%c3%a9/ and one written as /café/ both compare
+// equal against /caf%C3%A9/ (Q-ADV-4).
+function encodeRobotsPattern(pattern: string): string {
+  let out = "";
+  for (let i = 0; i < pattern.length; i++) {
+    const ch = pattern.charAt(i);
+    if (ch === "%" && /^[0-9a-fA-F]{2}$/.test(pattern.slice(i + 1, i + 3))) {
+      out += "%" + pattern.slice(i + 1, i + 3).toUpperCase();
+      i += 2;
+      continue;
+    }
+    if (ch.charCodeAt(0) > 0x7f) {
+      for (const byte of new TextEncoder().encode(ch)) {
+        out += "%" + byte.toString(16).toUpperCase().padStart(2, "0");
+      }
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
 function robotsPatternMatches(pattern: string, path: string): boolean {
   let p = pattern;
   let anchored = false;
@@ -158,14 +184,22 @@ export class Robots {
   }
 
   allows(url: string): boolean {
-    const path = new URL(url).pathname;
+    // RFC 9309 matching is over the path-and-query, not the path alone:
+    // a rule like "Disallow: /*?print=" only makes sense against the
+    // query string (Q-ADV-4). Both sides are percent-encoded.
+    const u = new URL(url);
+    const target = u.pathname + u.search;
     let longestDisallow = -1;
     let longestAllow = -1;
     for (const d of this.disallow) {
-      if (robotsPatternMatches(d, path)) longestDisallow = Math.max(longestDisallow, d.length);
+      if (robotsPatternMatches(encodeRobotsPattern(d), target)) {
+        longestDisallow = Math.max(longestDisallow, d.length);
+      }
     }
     for (const a of this.allow) {
-      if (robotsPatternMatches(a, path)) longestAllow = Math.max(longestAllow, a.length);
+      if (robotsPatternMatches(encodeRobotsPattern(a), target)) {
+        longestAllow = Math.max(longestAllow, a.length);
+      }
     }
     if (longestDisallow < 0) return true;
     // Longest matching pattern wins; on a tie the Allow rule wins.
