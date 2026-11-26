@@ -62,7 +62,9 @@ export class Robots {
         signal: AbortSignal.timeout(10000),
       });
       if (!res.ok) return new Robots(); // no robots file: everything allowed
-      return Robots.parse(await res.text());
+      const body = await readBodyCapped(res, MAX_ROBOTS_BYTES);
+      if (body === null) return new Robots(); // oversized robots file: ignore it
+      return Robots.parse(body);
     } catch {
       return new Robots(); // unreachable robots file: proceed, delays still apply
     }
@@ -72,6 +74,42 @@ export class Robots {
     const path = new URL(url).pathname;
     return !this.disallow.some((d) => path.startsWith(d));
   }
+}
+
+// Hard byte caps, enforced while streaming so an oversized body is aborted
+// instead of fully buffered in memory first.
+export const MAX_PAGE_BYTES = 3_000_000;
+export const MAX_ROBOTS_BYTES = 512_000; // robots.txt files are tiny; 512 KB is generous
+
+// Read a response body with a hard byte cap. Returns null when the body is
+// over the cap (including when the content-length header already proves it).
+export async function readBodyCapped(res: Response, maxBytes: number): Promise<string | null> {
+  const declared = Number(res.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    await res.body?.cancel().catch(() => {});
+    return null;
+  }
+  if (!res.body) return "";
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let total = 0;
+  let out = "";
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => {});
+        return null;
+      }
+      out += decoder.decode(value, { stream: true });
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  out += decoder.decode();
+  return out;
 }
 
 export interface Source {
@@ -125,8 +163,8 @@ export async function crawlSource(
         if (!res.ok) return;
         const type = res.headers.get("content-type") ?? "";
         if (!type.includes("text/html")) return;
-        const body = await res.text();
-        if (body.length > 3_000_000) return;
+        const body = await readBodyCapped(res, MAX_PAGE_BYTES);
+        if (body === null) return; // over the size cap: skip without buffering it all
         html = body;
         finalUrl = res.url || url;
       } catch {
