@@ -271,6 +271,44 @@ test("crawlSource logs the URL and cause when a fetch keeps failing (V3)", async
   }
 });
 
+test("crawlSource resolves relative links against the seed directory, not the slash-less normalised seed (K2)", async () => {
+  const pageWith = (links: string[]) =>
+    `<html><head><title>Doc</title></head><body><main><p>${"Documentation text that is comfortably over the stub threshold. ".repeat(6)}</p>${links.map((l) => `<a href="${l}">x</a>`).join("")}</main></body></html>`;
+  const restore = stubFetch((url) => {
+    if (url === "https://example.com/docs") {
+      return new Response(pageWith(["assert.html", "sub/"]), {
+        headers: { "content-type": "text/html" },
+      });
+    }
+    if (url === "https://example.com/docs/assert.html") {
+      return new Response(DOC_HTML, { headers: { "content-type": "text/html" } });
+    }
+    if (url === "https://example.com/docs/sub") {
+      return new Response(pageWith(["leaf.html"]), {
+        headers: { "content-type": "text/html" },
+      });
+    }
+    if (url === "https://example.com/docs/sub/leaf.html") {
+      return new Response(DOC_HTML, { headers: { "content-type": "text/html" } });
+    }
+    return new Response("nope", { status: 404 });
+  });
+  try {
+    const pages: CrawledPage[] = [];
+    const fetched = await crawlSource(DOC_SOURCE, { onPage: (p) => pages.push(p) }, { delayMs: 0 });
+    const urls = pages.map((p) => p.url).sort();
+    assert.equal(fetched, 4);
+    assert.deepEqual(urls, [
+      "https://example.com/docs",
+      "https://example.com/docs/assert.html",
+      "https://example.com/docs/sub",
+      "https://example.com/docs/sub/leaf.html",
+    ]);
+  } finally {
+    restore();
+  }
+});
+
 test("crawlSource stores a direct 200 response under its own URL", async () => {
   const restore = stubFetch(
     () => new Response(DOC_HTML, { headers: { "content-type": "text/html" } }),

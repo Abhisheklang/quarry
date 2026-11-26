@@ -14,6 +14,30 @@ export interface CrawledPage {
 export const USER_AGENT =
   "QuarryBot/1.0 (from-scratch search engine; respects robots.txt)";
 
+// The base a page's relative links resolve against (K2). Normalisation
+// strips the trailing slash from directory URLs (".../api/" becomes
+// ".../api"), and resolving "assert.html" against the slash-less form
+// drops the last segment and leaves the docs tree. So link resolution
+// uses the raw, pre-normalisation URL: a path already ending in "/" is
+// its own directory base; a slash-less path whose last segment carries
+// no file extension is a directory served without its slash, so the
+// slash goes back on; a file path stays as-is and URL resolution drops
+// its last segment as usual.
+export function linkBase(rawUrl: string): string {
+  try {
+    const u = new URL(rawUrl);
+    if (u.pathname.endsWith("/")) return u.toString();
+    const last = u.pathname.slice(u.pathname.lastIndexOf("/") + 1);
+    if (!last.includes(".")) {
+      u.pathname += "/";
+      return u.toString();
+    }
+    return u.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
 export function normalizeUrl(raw: string): string | null {
   try {
     const u = new URL(raw);
@@ -271,6 +295,11 @@ export async function crawlSource(
   const robots = await Robots.load(origin);
 
   const seen = new Set<string>([seed]);
+  // The raw (pre-normalisation) form of each queued URL, kept because
+  // normalisation strips the trailing slash that relative-link
+  // resolution needs (see linkBase). Dedupe and fetching always use the
+  // normalised form; the raw form is only the resolution base.
+  const rawForms = new Map<string, string>([[seed, source.seed]]);
   // Final (post-redirect) URLs already stored in this crawl: two queued
   // URLs can redirect to the same page, and only the first may count.
   const storedFinals = new Set<string>();
@@ -290,6 +319,7 @@ export async function crawlSource(
 
     let html: string | null = null;
     let finalUrl = url;
+    let baseUrl = url;
 
     // Fetch with redirects followed manually: every hop is revalidated
     // against the source allowlist prefix, so a redirect can never pull
@@ -299,8 +329,13 @@ export async function crawlSource(
     const MAX_REDIRECT_HOPS = 5;
     async function fetchValidated(
       start: string,
-    ): Promise<{ body: string; finalUrl: string } | null> {
+    ): Promise<{ body: string; finalUrl: string; baseUrl: string } | null> {
       let current = start;
+      // The raw form of the URL being fetched, tracked in parallel:
+      // redirect targets are recorded before normalisation strips a
+      // directory's trailing slash, so the final page's links can
+      // resolve against the directory they actually live in (K2).
+      let currentRaw = rawForms.get(start) ?? start;
       for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
         // Every hop is re-checked against robots.txt, not just the
         // originally queued URL: a redirect into a disallowed path must
@@ -315,16 +350,18 @@ export async function crawlSource(
           const location = res.headers.get("location");
           await res.body?.cancel().catch(() => {});
           if (!location || hop === MAX_REDIRECT_HOPS) return null;
-          let next: string | null;
+          let nextRaw: string;
           try {
-            next = normalizeUrl(new URL(location, current).toString());
+            nextRaw = new URL(location, currentRaw).toString();
           } catch {
             return null;
           }
+          const next = normalizeUrl(nextRaw);
           // normalizeUrl already restricts to http/https; the target must
           // also still live under the allowed prefix.
           if (!next || !next.startsWith(source.allowedPrefix)) return null;
           current = next;
+          currentRaw = nextRaw;
           continue;
         }
         if (!res.ok) return null;
@@ -332,7 +369,7 @@ export async function crawlSource(
         if (!type.includes("text/html")) return null;
         const body = await readBodyCapped(res, MAX_PAGE_BYTES);
         if (body === null) return null; // over the size cap
-        return { body, finalUrl: current };
+        return { body, finalUrl: current, baseUrl: linkBase(currentRaw) };
       }
       return null;
     }
@@ -345,6 +382,7 @@ export async function crawlSource(
         if (result === null) return;
         html = result.body;
         finalUrl = result.finalUrl;
+        baseUrl = result.baseUrl;
       } catch (e) {
         if (attempt === 1) {
           // A failure the retry could not fix must be diagnosable: log
@@ -359,14 +397,15 @@ export async function crawlSource(
     }
     if (html === null) return;
 
-    // Links resolve against the FINAL url (after redirects, trailing slash
-    // intact) — resolving "assert.html" against the normalised ".../api"
-    // would drop the last segment and leave the docs tree entirely.
+    // Links resolve against the FINAL url after redirects, in its raw
+    // directory form (baseUrl, from linkBase) — resolving "assert.html"
+    // against the normalised slash-less ".../api" would drop the last
+    // segment and leave the docs tree entirely (K2).
     // Extraction is guarded: one malformed page must be skipped, never
     // abort the whole crawl.
     let extracted;
     try {
-      extracted = extractPage(html, finalUrl);
+      extracted = extractPage(html, baseUrl);
     } catch (e) {
       console.error(
         `crawl: extraction failed for ${finalUrl}: ${e instanceof Error ? e.message : String(e)}`,
@@ -399,6 +438,9 @@ export async function crawlSource(
       if (!n.startsWith(source.allowedPrefix)) continue;
       if (SKIP_EXT.test(new URL(n).pathname)) continue;
       seen.add(n);
+      // Remember the raw resolved form (a directory link keeps its
+      // trailing slash here) as this URL's link-resolution base (K2).
+      if (!rawForms.has(n)) rawForms.set(n, link);
       // Enqueued either way: pages already stored are still traversed so
       // the crawl can reach deeper pages through them.
       queue.push(n);

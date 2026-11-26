@@ -34,8 +34,11 @@ seeds ──► crawler ──► data/pages.jsonl ──► indexer ──► d
 - **Two extraction lessons baked in**: `href` attributes may be unquoted
   (Node.js docs) — the link pattern accepts quoted and unquoted forms; and
   relative links resolve against the page's *final* URL after redirects,
-  because resolving `assert.html` against a normalised `.../api` (no
-  trailing slash) silently leaves the docs tree.
+  in its raw directory form — normalisation strips a directory's
+  trailing slash for dedupe, so the slash is restored for resolution
+  (`linkBase` in `src/crawler.ts`), because resolving `assert.html`
+  against a normalised `.../api` (no trailing slash) silently leaves
+  the docs tree.
 - **Boilerplate cut**: at index time, template footer blocks that ride
   inside `<main>` (MDN's "Help improve MDN" panel) are cut when their
   marker appears in the latter half of a page — before that cut, the word
