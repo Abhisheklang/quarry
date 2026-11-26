@@ -18,7 +18,7 @@ if (!existsSync(INDEX_PATH)) {
   process.exit(1);
 }
 const index = JSON.parse(readFileSync(INDEX_PATH, "utf-8")) as Index;
-const indexSizeMb = (statSync(INDEX_PATH).size / 1_000_000).toFixed(1);
+const indexSizeMb = Number((statSync(INDEX_PATH).size / 1_000_000).toFixed(1));
 const info = stats(index);
 console.log(
   `Quarry: ${info.documents} docs, ${info.terms} terms, index ${indexSizeMb} MB — http://localhost:${PORT}`,

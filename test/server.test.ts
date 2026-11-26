@@ -89,6 +89,13 @@ test("/api/search honours the offset parameter (U1)", async () => {
   assert.equal(pastBody.results.length, 0);
 });
 
+test("/api/stats returns indexSizeMb as a number (K7)", async () => {
+  const res = await fetch(`http://127.0.0.1:${HEADERS_PORT}/api/stats`);
+  const body = JSON.parse(await res.text());
+  assert.equal(typeof body.indexSizeMb, "number");
+  assert.equal(typeof body.documents, "number");
+});
+
 test("non-GET methods are rejected with 405 (SEC4)", async () => {
   for (const method of ["POST", "PUT", "DELETE"]) {
     const res = await fetch(`http://127.0.0.1:${HEADERS_PORT}/`, { method });
