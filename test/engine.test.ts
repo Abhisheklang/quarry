@@ -88,6 +88,22 @@ test("a C++ page is findable by searching for C++ (K3)", () => {
   assert.equal(sharp.total, 0); // no C# page in this corpus
 });
 
+test("literal ** pairs in page text are not treated as match markers (U6)", () => {
+  const mdIndex = buildIndex([
+    page(
+      "https://docs.example/markdown",
+      "MDN",
+      "Markdown notes",
+      "Write **bold** words carefully. A zebra appears in this example about markdown formatting and emphasis.",
+    ),
+  ]);
+  const out = search(mdIndex, "zebra");
+  assert.equal(out.results.length, 1);
+  const snippet = out.results[0].snippet;
+  assert.ok(snippet.includes("**zebra**"), "the genuine match keeps its markers");
+  assert.ok(!snippet.includes("**bold**"), "the literal pair must not survive as a marker pair");
+});
+
 test("source filter restricts results", () => {
   const out = search(index, "promise", { source: "Node.js" });
   assert.ok(out.results.every((r) => r.source === "Node.js"));

@@ -129,6 +129,11 @@ function makeSnippet(doc: IndexedDoc, queryTerms: string[]): string {
   const start = Math.max(0, at - 70);
   const end = Math.min(doc.text.length, at + 140);
   let snippet = doc.text.slice(start, end).trim();
+  // Neutralize ** pairs that are literally in the page text (markdown
+  // documentation is full of them): a zero-width space between the two
+  // asterisks keeps them from pairing up with the genuine match markers
+  // added below and rendering as highlights.
+  snippet = snippet.replace(/\*\*/g, "*\u200b*");
   for (const term of queryTerms) {
     snippet = snippet.replace(
       new RegExp(`([a-z0-9]*${term}[a-z0-9]*)`, "gi"),
