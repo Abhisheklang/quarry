@@ -269,8 +269,9 @@ export async function crawlSource(
       if (!n.startsWith(source.allowedPrefix)) continue;
       if (SKIP_EXT.test(new URL(n).pathname)) continue;
       seen.add(n);
-      if (!hooks.alreadyHave?.has(n)) queue.push(n);
-      else queue.push(n); // still traverse through it to reach deeper pages
+      // Enqueued either way: pages already stored are still traversed so
+      // the crawl can reach deeper pages through them.
+      queue.push(n);
     }
   }
 
