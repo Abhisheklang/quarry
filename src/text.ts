@@ -112,10 +112,19 @@ const ENTITIES: Record<string, string> = {
 };
 
 export function decodeEntities(s: string): string {
-  // Code points above U+10FFFF are invalid: String.fromCodePoint throws a
-  // RangeError for them. Leave such entities untouched instead of crashing.
-  const fromCodePoint = (n: number, raw: string): string =>
-    Number.isFinite(n) && n >= 0 && n <= 0x10ffff ? String.fromCodePoint(n) : raw;
+  // Numeric entities naming an invalid code point decode to U+FFFD, the
+  // replacement character, exactly as browsers handle them: code points
+  // above U+10FFFF (String.fromCodePoint would throw a RangeError) and
+  // the surrogate range U+D800 to U+DFFF, which would otherwise emit a
+  // lone surrogate and corrupt downstream UTF-8 and JSON (Q-ADV-5,
+  // Q-ADV-6).
+  const fromCodePoint = (n: number): string =>
+    Number.isFinite(n) &&
+    n >= 0 &&
+    n <= 0x10ffff &&
+    !(n >= 0xd800 && n <= 0xdfff)
+      ? String.fromCodePoint(n)
+      : "�";
   // ONE pass over the text: the replacement text is never rescanned, so a
   // literal "&#38;lt;" (an author writing about the &lt; entity) decodes
   // to "&lt;" and stops there instead of double-decoding to "<".
@@ -127,7 +136,7 @@ export function decodeEntities(s: string): string {
           body[1] === "x" || body[1] === "X"
             ? parseInt(body.slice(2), 16)
             : Number(body.slice(1));
-        return fromCodePoint(n, m);
+        return fromCodePoint(n);
       }
       // Exact case first (&Dagger; differs from &dagger;), then lowercase.
       return ENTITIES[`&${body};`] ?? ENTITIES[`&${body.toLowerCase()};`] ?? m;

@@ -35,13 +35,24 @@ test("extractPage finds unquoted hrefs (Node.js docs style)", () => {
   assert.ok(page.links.some((l) => l === "https://nodejs.org/api/single.html"));
 });
 
-test("decodeEntities leaves out-of-range code points untouched instead of throwing", () => {
-  assert.equal(decodeEntities("a &#1114112; b"), "a &#1114112; b");
-  assert.equal(decodeEntities("a &#x110000; b"), "a &#x110000; b");
-  assert.equal(decodeEntities("a &#999999999; b"), "a &#999999999; b");
+test("decodeEntities substitutes U+FFFD for out-of-range code points (Q-ADV-5)", () => {
+  assert.equal(decodeEntities("a &#1114112; b"), "a � b");
+  assert.equal(decodeEntities("a &#x110000; b"), "a � b");
+  assert.equal(decodeEntities("a &#999999999; b"), "a � b");
   // Valid entities still decode, including the maximum valid code point.
   assert.equal(decodeEntities("&#65;&#x42;"), "AB");
   assert.equal(decodeEntities("&#1114111;"), String.fromCodePoint(0x10ffff));
+});
+
+test("decodeEntities substitutes U+FFFD for lone surrogate entities (Q-ADV-6)", () => {
+  for (const entity of ["&#xD800;", "&#xDFFF;", "&#55296;", "&#57343;"]) {
+    const out = decodeEntities(entity);
+    assert.equal(out, "�", entity);
+    assert.ok(!/[\uD800-\uDFFF]/.test(out), `${entity} must not emit a lone surrogate`);
+  }
+  // A real astral character written as one entity still decodes.
+  assert.equal(decodeEntities("&#128512;"), "😀");
+  assert.equal(decodeEntities("&#x1F600;"), "😀");
 });
 
 test("decodeEntities decodes common named entities (K4)", () => {
