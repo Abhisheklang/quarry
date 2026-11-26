@@ -33,10 +33,12 @@ export function normalizeUrl(raw: string): string | null {
   }
 }
 
-// Robots.txt evaluation: rules from the "*" group plus a group naming
-// our own agent when present. Patterns follow RFC 9309: "*" matches any
-// sequence, a trailing "$" anchors the match to the end of the path, and
-// when several rules match, the longest pattern wins (ties go to Allow).
+// Robots.txt evaluation: RFC 9309 section 2.2.1 group specificity - when
+// a group names our own agent, that group's rules govern and the "*"
+// group is ignored; the "*" group applies only when no group matches our
+// token (Q-ADV-2). Patterns follow RFC 9309: "*" matches any sequence, a
+// trailing "$" anchors the match to the end of the path, and when several
+// rules match, the longest pattern wins (ties go to Allow).
 function robotsPatternMatches(pattern: string, path: string): boolean {
   let p = pattern;
   let anchored = false;
@@ -64,20 +66,32 @@ export class Robots {
   }
 
   static parse(body: string): Robots {
-    const r = new Robots();
-    // A robots.txt group can name several agents on consecutive user-agent
-    // lines that share one rule block. Accumulate the group's agents and
-    // apply its rules if any of them is "*" or our own agent. The group
-    // ends at a blank line, or at a user-agent line that appears after
-    // rules have already started.
+    // Parse into groups first: a group can name several agents on
+    // consecutive user-agent lines that share one rule block, and it ends
+    // at a blank line or at a user-agent line that appears after rules
+    // have already started. Group selection happens after the whole file
+    // is read, because specificity (Q-ADV-2) is a whole-file decision.
+    interface Group {
+      agents: Set<string>;
+      disallow: string[];
+      allow: string[];
+    }
+    const groups: Group[] = [];
     let agents = new Set<string>();
+    let disallow: string[] = [];
+    let allow: string[] = [];
     let rulesStarted = false;
-    const inOurGroup = () => agents.has("*") || agents.has("quarrybot");
+    const flush = () => {
+      if (agents.size > 0) groups.push({ agents, disallow, allow });
+      agents = new Set();
+      disallow = [];
+      allow = [];
+      rulesStarted = false;
+    };
     for (const line of body.split(/\r?\n/)) {
       let t = line.trim();
       if (!t) {
-        agents = new Set();
-        rulesStarted = false;
+        flush();
         continue;
       }
       if (t.startsWith("#")) continue;
@@ -88,10 +102,7 @@ export class Robots {
       if (!t) continue;
       const ua = t.match(/^user-agent:\s*(.+)$/i);
       if (ua) {
-        if (rulesStarted) {
-          agents = new Set();
-          rulesStarted = false;
-        }
+        if (rulesStarted) flush();
         const agent = ua[1];
         if (agent) agents.add(agent.trim().toLowerCase());
         continue;
@@ -99,18 +110,28 @@ export class Robots {
       const dis = t.match(/^disallow:\s*(\S+)/i);
       if (dis) {
         rulesStarted = true;
-        if (inOurGroup() && dis[1]) r.disallow.push(dis[1]);
+        if (dis[1]) disallow.push(dis[1]);
         continue;
       }
-      const allow = t.match(/^allow:\s*(\S+)/i);
-      if (allow) {
+      const allowMatch = t.match(/^allow:\s*(\S+)/i);
+      if (allowMatch) {
         rulesStarted = true;
-        if (inOurGroup() && allow[1]) r.allow.push(allow[1]);
+        if (allowMatch[1]) allow.push(allowMatch[1]);
         continue;
       }
-      // Any other directive (allow, crawl-delay, ...) also means the
+      // Any other directive (crawl-delay, sitemap, ...) also means the
       // current group's rule block has started.
       if (t.includes(":")) rulesStarted = true;
+    }
+    flush();
+    // RFC 9309 section 2.2.1: groups naming our own agent govern; the
+    // "*" groups are used only when no group matches our token.
+    const own = groups.filter((g) => g.agents.has("quarrybot"));
+    const chosen = own.length > 0 ? own : groups.filter((g) => g.agents.has("*"));
+    const r = new Robots();
+    for (const g of chosen) {
+      r.disallow.push(...g.disallow);
+      r.allow.push(...g.allow);
     }
     return r;
   }

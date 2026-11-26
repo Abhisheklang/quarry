@@ -66,6 +66,58 @@ test("robots: Allow rules reopen a subtree of a Disallow (K8)", () => {
   assert.equal(r.allows("https://example.com/docs/private/x"), false);
 });
 
+test("robots: an own-agent group governs over the star group (Q-ADV-2)", () => {
+  const body = `
+User-agent: quarrybot
+Disallow: /private/
+
+User-agent: *
+Allow: /private/
+`;
+  const r = Robots.parse(body);
+  assert.equal(r.allows("https://example.com/private/x"), false);
+  assert.equal(r.allows("https://example.com/docs/page"), true);
+});
+
+test("robots: a longer star-group Allow cannot override an own-group Disallow (Q-ADV-2)", () => {
+  const body = `
+User-agent: *
+Allow: /private/public/
+
+User-agent: QuarryBot
+Disallow: /private/
+`;
+  const r = Robots.parse(body);
+  assert.equal(r.allows("https://example.com/private/public/x"), false);
+});
+
+test("robots: star-group rules do not leak into paths the own group leaves open (Q-ADV-2)", () => {
+  const body = `
+User-agent: quarrybot
+Disallow: /a/
+
+User-agent: *
+Disallow: /b/
+`;
+  const r = Robots.parse(body);
+  assert.equal(r.allows("https://example.com/a/x"), false);
+  // The own group governs, so the star group's /b/ ban does not apply.
+  assert.equal(r.allows("https://example.com/b/x"), true);
+});
+
+test("robots: a shared group naming our agent counts as an own group (Q-ADV-2)", () => {
+  const body = `
+User-agent: OtherBot
+User-agent: quarrybot
+Disallow: /private/
+
+User-agent: *
+Allow: /private/
+`;
+  const r = Robots.parse(body);
+  assert.equal(r.allows("https://example.com/private/x"), false);
+});
+
 test("robots: a 5xx robots.txt means complete disallow (Q-ADV-3)", async () => {
   const originalFetch = globalThis.fetch;
   try {
