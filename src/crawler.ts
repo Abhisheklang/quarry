@@ -151,22 +151,57 @@ export async function crawlSource(
 
     let html: string | null = null;
     let finalUrl = url;
+
+    // Fetch with redirects followed manually: every hop is revalidated
+    // against the source allowlist prefix, so a redirect can never pull
+    // content from outside the allowed tree. Returns null for a definitive
+    // skip (bad status, bad redirect target, wrong type, oversized body);
+    // network errors throw so the caller can retry them once.
+    const MAX_REDIRECT_HOPS = 5;
+    async function fetchValidated(
+      start: string,
+    ): Promise<{ body: string; finalUrl: string } | null> {
+      let current = start;
+      for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
+        const res = await fetch(current, {
+          headers: { "user-agent": USER_AGENT },
+          signal: AbortSignal.timeout(20000),
+          redirect: "manual",
+        });
+        if (res.status >= 300 && res.status < 400) {
+          const location = res.headers.get("location");
+          await res.body?.cancel().catch(() => {});
+          if (!location || hop === MAX_REDIRECT_HOPS) return null;
+          let next: string | null;
+          try {
+            next = normalizeUrl(new URL(location, current).toString());
+          } catch {
+            return null;
+          }
+          // normalizeUrl already restricts to http/https; the target must
+          // also still live under the allowed prefix.
+          if (!next || !next.startsWith(source.allowedPrefix)) return null;
+          current = next;
+          continue;
+        }
+        if (!res.ok) return null;
+        const type = res.headers.get("content-type") ?? "";
+        if (!type.includes("text/html")) return null;
+        const body = await readBodyCapped(res, MAX_PAGE_BYTES);
+        if (body === null) return null; // over the size cap
+        return { body, finalUrl: current };
+      }
+      return null;
+    }
+
     // One retry on a transient failure: a single dropped seed fetch would
     // otherwise silently zero out a whole source.
     for (let attempt = 0; attempt < 2 && html === null; attempt++) {
       try {
-        const res = await fetch(url, {
-          headers: { "user-agent": USER_AGENT },
-          signal: AbortSignal.timeout(20000),
-          redirect: "follow",
-        });
-        if (!res.ok) return;
-        const type = res.headers.get("content-type") ?? "";
-        if (!type.includes("text/html")) return;
-        const body = await readBodyCapped(res, MAX_PAGE_BYTES);
-        if (body === null) return; // over the size cap: skip without buffering it all
-        html = body;
-        finalUrl = res.url || url;
+        const result = await fetchValidated(url);
+        if (result === null) return;
+        html = result.body;
+        finalUrl = result.finalUrl;
       } catch {
         if (attempt === 1) return;
         await new Promise((r) => setTimeout(r, 1000));
@@ -189,9 +224,10 @@ export async function crawlSource(
     if (text.length < 200) return; // a stub or redirect shell, not a document
     fetched++;
     // On a resumed run, pages already stored are traversed for their links
-    // but not stored twice.
-    if (!hooks.alreadyHave?.has(url)) {
-      hooks.onPage?.({ url, source: source.name, title, headings, text });
+    // but not stored twice. Pages are stored under their final validated
+    // URL (after any redirects), not the originally queued one.
+    if (!hooks.alreadyHave?.has(finalUrl)) {
+      hooks.onPage?.({ url: finalUrl, source: source.name, title, headings, text });
     }
     hooks.onProgress?.(source.name, fetched, queue.length);
 
