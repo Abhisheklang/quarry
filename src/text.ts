@@ -23,9 +23,13 @@ const ENTITIES: Record<string, string> = {
 };
 
 export function decodeEntities(s: string): string {
+  // Code points above U+10FFFF are invalid: String.fromCodePoint throws a
+  // RangeError for them. Leave such entities untouched instead of crashing.
+  const fromCodePoint = (n: number, raw: string): string =>
+    Number.isFinite(n) && n >= 0 && n <= 0x10ffff ? String.fromCodePoint(n) : raw;
   return s
-    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+    .replace(/&#(\d+);/g, (m, n) => fromCodePoint(Number(n), m))
+    .replace(/&#x([0-9a-f]+);/gi, (m, n) => fromCodePoint(parseInt(n, 16), m))
     .replace(/&[a-z#0-9]+;/gi, (m) => ENTITIES[m.toLowerCase()] ?? m);
 }
 

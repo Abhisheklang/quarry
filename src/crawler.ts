@@ -139,7 +139,15 @@ export async function crawlSource(
     // Links resolve against the FINAL url (after redirects, trailing slash
     // intact) — resolving "assert.html" against the normalised ".../api"
     // would drop the last segment and leave the docs tree entirely.
-    const { title, headings, text, links } = extractPage(html, finalUrl);
+    // Extraction is guarded: one malformed page must be skipped, never
+    // abort the whole crawl.
+    let extracted;
+    try {
+      extracted = extractPage(html, finalUrl);
+    } catch {
+      return;
+    }
+    const { title, headings, text, links } = extracted;
     if (text.length < 200) return; // a stub or redirect shell, not a document
     fetched++;
     // On a resumed run, pages already stored are traversed for their links

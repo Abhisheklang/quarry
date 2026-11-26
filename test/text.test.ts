@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stem, tokenize, extractPage } from "../src/text.ts";
+import { stem, tokenize, extractPage, decodeEntities } from "../src/text.ts";
 
 test("stem merges common inflections of the same word", () => {
   assert.equal(stem("promises"), stem("promise"));
@@ -26,6 +26,23 @@ test("extractPage finds unquoted hrefs (Node.js docs style)", () => {
   const page = extractPage(html, "https://nodejs.org/api/");
   assert.ok(page.links.some((l) => l === "https://nodejs.org/api/assert.html"));
   assert.ok(page.links.some((l) => l === "https://nodejs.org/api/single.html"));
+});
+
+test("decodeEntities leaves out-of-range code points untouched instead of throwing", () => {
+  assert.equal(decodeEntities("a &#1114112; b"), "a &#1114112; b");
+  assert.equal(decodeEntities("a &#x110000; b"), "a &#x110000; b");
+  assert.equal(decodeEntities("a &#999999999; b"), "a &#999999999; b");
+  // Valid entities still decode, including the maximum valid code point.
+  assert.equal(decodeEntities("&#65;&#x42;"), "AB");
+  assert.equal(decodeEntities("&#1114111;"), String.fromCodePoint(0x10ffff));
+});
+
+test("extractPage survives a page containing an out-of-range entity", () => {
+  const html = `<html><head><title>Bad entity</title></head><body><main>
+  <p>Broken entity &#1114112; and hex &#x110000; in otherwise normal text. ${"Documentation text that is comfortably over the stub threshold. ".repeat(6)}</p>
+  </main></body></html>`;
+  const page = extractPage(html, "https://example.com/docs/page");
+  assert.ok(page.text.includes("otherwise normal text"));
 });
 
 test("extractPage pulls title, main text, headings and links", () => {
