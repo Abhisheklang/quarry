@@ -1,6 +1,6 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -112,6 +112,18 @@ test("security headers present on a 404 response", async () => {
   assert.equal(res.status, 404);
   assertSecurityHeaders(res);
   await res.text();
+});
+
+test("an invalid PORT exits with a clear message instead of a NaN banner (K9)", () => {
+  const result = spawnSync(process.execPath, ["src/server.ts"], {
+    cwd: new URL("..", import.meta.url).pathname,
+    env: { ...process.env, PORT: "abc", QUARRY_INDEX: INDEX },
+    encoding: "utf-8",
+    timeout: 30000,
+  });
+  assert.equal(result.status, 1);
+  assert.ok(result.stderr.includes('Invalid PORT "abc"'), `stderr: ${result.stderr}`);
+  assert.ok(!result.stderr.includes("NaN"), `stderr must not claim a NaN port: ${result.stderr}`);
 });
 
 test("normal-rate API requests pass and a burst beyond the limit gets 429", async () => {

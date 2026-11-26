@@ -9,6 +9,12 @@ import { search, stats, type Index } from "./engine.ts";
 const INDEX_PATH =
   process.env.QUARRY_INDEX ?? new URL("../data/index.json", import.meta.url).pathname;
 const PORT = Number(process.env.PORT ?? 3000);
+if (!Number.isInteger(PORT) || PORT < 0 || PORT > 65535) {
+  console.error(
+    `Invalid PORT "${process.env.PORT}": expected an integer between 0 and 65535.`,
+  );
+  process.exit(1);
+}
 
 if (!existsSync(INDEX_PATH)) {
   console.error(
