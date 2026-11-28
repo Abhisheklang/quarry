@@ -1,6 +1,33 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readBodyCapped, crawlSource, type CrawledPage, type Source } from "../src/crawler.ts";
+import {
+  readBodyCapped,
+  crawlSource,
+  withinAllowedPrefix,
+  type CrawledPage,
+  type Source,
+} from "../src/crawler.ts";
+
+test("withinAllowedPrefix requires a path boundary after a slash-less prefix", () => {
+  const prefix = "https://developer.mozilla.org/en-US/docs/Web";
+  assert.equal(withinAllowedPrefix("https://developer.mozilla.org/en-US/docs/Web", prefix), true);
+  assert.equal(
+    withinAllowedPrefix("https://developer.mozilla.org/en-US/docs/Web/JavaScript", prefix),
+    true,
+  );
+  // Sibling trees share the string prefix but are outside the scope.
+  assert.equal(
+    withinAllowedPrefix("https://developer.mozilla.org/en-US/docs/WebAssembly/Concepts", prefix),
+    false,
+  );
+  assert.equal(
+    withinAllowedPrefix("https://developer.mozilla.org/en-US/docs/WebGL/Concepts", prefix),
+    false,
+  );
+  // A trailing-slash prefix behaves as a plain prefix, as before.
+  assert.equal(withinAllowedPrefix("https://example.com/docs/a", "https://example.com/docs/"), true);
+  assert.equal(withinAllowedPrefix("https://example.com/other", "https://example.com/docs/"), false);
+});
 
 test("readBodyCapped returns a small body in full", async () => {
   const res = new Response("hello world");

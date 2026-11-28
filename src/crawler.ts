@@ -96,11 +96,35 @@ function robotsPatternMatches(pattern: string, path: string): boolean {
     anchored = true;
     p = p.slice(0, -1);
   }
-  const source = p
-    .split("*")
-    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-    .join(".*");
-  return new RegExp(`^${source}${anchored ? "$" : ""}`).test(path);
+  // An unanchored pattern matches a prefix of the path, which is the
+  // same as matching the whole path with an implicit trailing "*".
+  if (!anchored) p += "*";
+  // Hand-rolled wildcard match, not a RegExp: the pattern comes from a
+  // remote robots.txt and can carry dozens of "*" wildcards, and the
+  // equivalent regex backtracks exponentially on a long non-matching
+  // path, hanging the crawl on one hostile or careless file. This
+  // greedy matcher is polynomial: every retry advances the position
+  // the most recent "*" has consumed up to.
+  let pi = 0;
+  let ti = 0;
+  let starP = -1;
+  let starT = -1;
+  while (ti < path.length) {
+    if (pi < p.length && p[pi] === "*") {
+      starP = pi++;
+      starT = ti;
+    } else if (pi < p.length && p[pi] === path[ti]) {
+      pi++;
+      ti++;
+    } else if (starP >= 0) {
+      pi = starP + 1;
+      ti = ++starT;
+    } else {
+      return false;
+    }
+  }
+  while (pi < p.length && p[pi] === "*") pi++;
+  return pi === p.length;
 }
 
 export class Robots {
@@ -267,10 +291,23 @@ export async function readBodyCapped(res: Response, maxBytes: number): Promise<s
   return out;
 }
 
+// The allowlist check for followed URLs. A bare startsWith is not
+// enough when the prefix does not end in "/": the MDN prefix
+// ".../en-US/docs/Web" also string-matches the sibling trees
+// ".../docs/WebAssembly" and ".../docs/WebGL", which are outside the
+// declared scope. The character after the prefix must be a path
+// boundary ("/", "?", or the end of the URL).
+export function withinAllowedPrefix(url: string, prefix: string): boolean {
+  if (!url.startsWith(prefix)) return false;
+  if (prefix.endsWith("/")) return true;
+  const rest = url.slice(prefix.length);
+  return rest === "" || rest.startsWith("/") || rest.startsWith("?");
+}
+
 export interface Source {
   name: string;
   seed: string;
-  allowedPrefix: string; // only URLs starting with this string are followed
+  allowedPrefix: string; // only URLs inside this prefix are followed
   maxPages: number;
 }
 
@@ -359,7 +396,7 @@ export async function crawlSource(
           const next = normalizeUrl(nextRaw);
           // normalizeUrl already restricts to http/https; the target must
           // also still live under the allowed prefix.
-          if (!next || !next.startsWith(source.allowedPrefix)) return null;
+          if (!next || !withinAllowedPrefix(next, source.allowedPrefix)) return null;
           current = next;
           currentRaw = nextRaw;
           continue;
@@ -435,7 +472,7 @@ export async function crawlSource(
       if (seen.size >= source.maxPages) break;
       const n = normalizeUrl(link);
       if (!n || seen.has(n)) continue;
-      if (!n.startsWith(source.allowedPrefix)) continue;
+      if (!withinAllowedPrefix(n, source.allowedPrefix)) continue;
       if (SKIP_EXT.test(new URL(n).pathname)) continue;
       seen.add(n);
       // Remember the raw resolved form (a directory link keeps its

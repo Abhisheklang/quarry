@@ -180,6 +180,21 @@ test("robots: a 4xx robots.txt still means everything allowed (Q-ADV-3)", async 
   }
 });
 
+test("robots: a wildcard-heavy pattern cannot hang the matcher", () => {
+  // Regression: the matcher used to build a RegExp from the pattern,
+  // and a dozen "*" wildcards against a long non-matching path
+  // backtracked exponentially (a 120-char path did not finish in 30 s).
+  const r = Robots.parse(
+    "User-agent: *\nDisallow: /*a*a*a*a*a*a*a*a*a*a*a*a*b$\n",
+  );
+  const started = Date.now();
+  assert.equal(r.allows("https://example.com/" + "a".repeat(2000) + "c"), true);
+  assert.ok(Date.now() - started < 1000, "matcher must answer in well under a second");
+  // And the pattern still matches what it should: twelve "a"s and a
+  // trailing "b" is exactly the shape the rule names.
+  assert.equal(r.allows("https://example.com/aaaaaaaaaaaab"), false);
+});
+
 test("normalizeUrl strips fragments and tracking params", () => {
   assert.equal(
     normalizeUrl("https://Example.com/docs/page?utm_source=x#section"),
